@@ -2,7 +2,7 @@
 
 > **Complete integration guide for Node.js/Express backend developers**  
 > **Last Updated:** December 2024  
-> **Auth Service Version:** 1.0.0
+> **Auth Service Version:** 1.1.0
 
 ---
 
@@ -14,6 +14,7 @@
 4. [JWT Token Structure](#jwt-token-structure)
 5. [API Reference](#api-reference)
    - [Authentication APIs](#authentication-apis)
+   - [Passwordless OTP Login APIs](#passwordless-otp-login-apis) 🆕
    - [Token Management APIs](#token-management-apis)
    - [User Management APIs](#user-management-apis)
    - [Verification APIs](#verification-apis)
@@ -33,6 +34,7 @@
 The FixHomi Auth Service is a **stateless JWT-based authentication microservice** built with Spring Boot. It handles:
 
 - User registration and login
+- **Passwordless OTP Login (Phone & Email)** 🆕
 - JWT access token generation (24-hour expiry)
 - Refresh token management (7-day expiry)
 - Email and phone verification
@@ -372,6 +374,264 @@ GET /api/auth/health
 {
   "status": "UP",
   "message": "Auth service is running"
+}
+```
+
+---
+
+### Passwordless OTP Login APIs 🆕
+
+> **New in v1.1.0:** Passwordless authentication using OTP sent to phone or email.
+
+#### 5. Phone OTP Login - Send OTP
+
+Send a 6-digit OTP to user's phone number for passwordless login.
+
+```http
+POST /api/auth/login/phone/send-otp
+```
+
+**Request Body:**
+```json
+{
+  "phoneNumber": "+1234567890"
+}
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "OTP sent successfully to +123***7890",
+  "maskedPhone": "+123***7890",
+  "expiresInMinutes": 5
+}
+```
+
+**Error Responses:**
+
+| Status | Error | Description |
+|--------|-------|-------------|
+| 404 | Not Found | No user with this phone number |
+| 429 | Too Many Requests | Rate limit exceeded |
+| 500 | Server Error | Failed to send OTP |
+
+**Node.js Example:**
+```javascript
+async function sendPhoneLoginOtp(phoneNumber) {
+  try {
+    const response = await axios.post(
+      `${process.env.AUTH_SERVICE_URL}/api/auth/login/phone/send-otp`,
+      { phoneNumber }
+    );
+    return response.data;
+  } catch (error) {
+    if (error.response?.status === 404) {
+      throw new Error('No account found with this phone number');
+    }
+    if (error.response?.status === 429) {
+      throw new Error('Too many requests. Please wait before trying again.');
+    }
+    throw error;
+  }
+}
+```
+
+---
+
+#### 6. Phone OTP Login - Verify OTP
+
+Verify OTP and complete login. Returns JWT tokens on success.
+
+```http
+POST /api/auth/login/phone/verify
+```
+
+**Request Body:**
+```json
+{
+  "phoneNumber": "+1234567890",
+  "otp": "123456"
+}
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "accessToken": "eyJhbGciOiJIUzUxMiJ9...",
+  "refreshToken": "550e8400-e29b-41d4-a716-446655440000",
+  "tokenType": "Bearer",
+  "userId": 1,
+  "email": "john.doe@example.com",
+  "fullName": "John Doe",
+  "role": "USER",
+  "expiresIn": 86400
+}
+```
+
+**Error Responses:**
+
+| Status | Error | Description |
+|--------|-------|-------------|
+| 400 | Invalid OTP | OTP is incorrect |
+| 400 | OTP Expired | OTP has expired |
+| 429 | Too Many Attempts | Max verification attempts exceeded |
+
+**Node.js Example:**
+```javascript
+async function verifyPhoneLoginOtp(phoneNumber, otp) {
+  try {
+    const response = await axios.post(
+      `${process.env.AUTH_SERVICE_URL}/api/auth/login/phone/verify`,
+      { phoneNumber, otp }
+    );
+    return {
+      success: true,
+      user: {
+        id: response.data.userId,
+        email: response.data.email,
+        name: response.data.fullName,
+        role: response.data.role
+      },
+      tokens: {
+        accessToken: response.data.accessToken,
+        refreshToken: response.data.refreshToken,
+        expiresIn: response.data.expiresIn
+      }
+    };
+  } catch (error) {
+    if (error.response?.status === 400) {
+      throw new Error(error.response.data.message || 'Invalid or expired OTP');
+    }
+    throw error;
+  }
+}
+```
+
+---
+
+#### 7. Email OTP Login - Send OTP
+
+Send a 6-digit OTP to user's email for passwordless login.
+
+```http
+POST /api/auth/login/email/send-otp
+```
+
+**Request Body:**
+```json
+{
+  "email": "john.doe@example.com"
+}
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "OTP sent successfully to j***@example.com",
+  "maskedEmail": "j***@example.com",
+  "expiresInMinutes": 5
+}
+```
+
+**Error Responses:**
+
+| Status | Error | Description |
+|--------|-------|-------------|
+| 404 | Not Found | No user with this email |
+| 429 | Too Many Requests | Rate limit exceeded |
+| 500 | Server Error | Failed to send OTP |
+
+**Node.js Example:**
+```javascript
+async function sendEmailLoginOtp(email) {
+  try {
+    const response = await axios.post(
+      `${process.env.AUTH_SERVICE_URL}/api/auth/login/email/send-otp`,
+      { email }
+    );
+    return response.data;
+  } catch (error) {
+    if (error.response?.status === 404) {
+      throw new Error('No account found with this email address');
+    }
+    if (error.response?.status === 429) {
+      throw new Error('Too many requests. Please wait before trying again.');
+    }
+    throw error;
+  }
+}
+```
+
+---
+
+#### 8. Email OTP Login - Verify OTP
+
+Verify OTP and complete login. Returns JWT tokens on success.
+
+```http
+POST /api/auth/login/email/verify
+```
+
+**Request Body:**
+```json
+{
+  "email": "john.doe@example.com",
+  "otp": "123456"
+}
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "accessToken": "eyJhbGciOiJIUzUxMiJ9...",
+  "refreshToken": "550e8400-e29b-41d4-a716-446655440000",
+  "tokenType": "Bearer",
+  "userId": 1,
+  "email": "john.doe@example.com",
+  "fullName": "John Doe",
+  "role": "USER",
+  "expiresIn": 86400
+}
+```
+
+**Error Responses:**
+
+| Status | Error | Description |
+|--------|-------|-------------|
+| 400 | Invalid OTP | OTP is incorrect |
+| 400 | OTP Expired | OTP has expired |
+| 429 | Too Many Attempts | Max verification attempts exceeded |
+
+**Node.js Example:**
+```javascript
+async function verifyEmailLoginOtp(email, otp) {
+  try {
+    const response = await axios.post(
+      `${process.env.AUTH_SERVICE_URL}/api/auth/login/email/verify`,
+      { email, otp }
+    );
+    return {
+      success: true,
+      user: {
+        id: response.data.userId,
+        email: response.data.email,
+        name: response.data.fullName,
+        role: response.data.role
+      },
+      tokens: {
+        accessToken: response.data.accessToken,
+        refreshToken: response.data.refreshToken,
+        expiresIn: response.data.expiresIn
+      }
+    };
+  } catch (error) {
+    if (error.response?.status === 400) {
+      throw new Error(error.response.data.message || 'Invalid or expired OTP');
+    }
+    throw error;
+  }
 }
 ```
 

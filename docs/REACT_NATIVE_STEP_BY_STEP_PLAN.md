@@ -38,6 +38,11 @@ This guide covers the **mobile app integration** for FixHomi Auth Service. The m
 | 15 | `/api/verification/reset-password/validate` | GET | Validate reset token | ❌ No |
 | 16 | `/api/verification/reset-password` | POST | Reset password | ❌ No |
 | 17 | `/oauth2/authorization/google` | GET | Google OAuth login | ❌ No |
+| 18 | `/api/auth/oauth2/google/mobile` | POST | Mobile Google Sign-In | ❌ No |
+| **19** | `/api/auth/login/phone/send-otp` | POST | **Passwordless: Send phone OTP** 🆕 | ❌ No |
+| **20** | `/api/auth/login/phone/verify` | POST | **Passwordless: Verify phone OTP** 🆕 | ❌ No |
+| **21** | `/api/auth/login/email/send-otp` | POST | **Passwordless: Send email OTP** 🆕 | ❌ No |
+| **22** | `/api/auth/login/email/verify` | POST | **Passwordless: Verify email OTP** 🆕 | ❌ No |
 
 ---
 

@@ -72,4 +72,21 @@ public class BrevoEmailService implements EmailService {
         logger.warn("Brevo email service not fully implemented yet.");
         return false;
     }
+
+    @Override
+    public boolean sendLoginOtp(String toEmail, String fullName, String otp) {
+        logger.info("Sending login OTP via Brevo to: {}", toEmail);
+        
+        // TODO: Implement Brevo API call
+        // TransactionalEmailsApi api = new TransactionalEmailsApi();
+        // SendSmtpEmail email = new SendSmtpEmail();
+        // email.setSender(new SendSmtpEmailSender().email(senderEmail).name(senderName));
+        // email.setTo(List.of(new SendSmtpEmailTo().email(toEmail).name(fullName)));
+        // email.setSubject("Your FixHomi Login Code");
+        // email.setHtmlContent("<h2>Your Login Code: " + otp + "</h2><p>Valid for 5 minutes.</p>");
+        // api.sendTransacEmail(email);
+        
+        logger.warn("Brevo email service not fully implemented yet. OTP: {}", otp);
+        return false;
+    }
 }

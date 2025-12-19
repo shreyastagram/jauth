@@ -56,4 +56,15 @@ public class StubEmailService implements EmailService {
         logger.info("=========================================");
         return true;
     }
+
+    @Override
+    public boolean sendLoginOtp(String toEmail, String fullName, String otp) {
+        logger.info("========== STUB EMAIL SERVICE ==========");
+        logger.info("EMAIL TYPE: Login OTP");
+        logger.info("TO: {} ({})", toEmail, fullName);
+        logger.info("OTP CODE: {}", otp);
+        logger.info("MESSAGE: Your FixHomi login code is: {}. Valid for 5 minutes.", otp);
+        logger.info("=========================================");
+        return true;
+    }
 }

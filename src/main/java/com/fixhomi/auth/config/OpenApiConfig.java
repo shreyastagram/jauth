@@ -63,6 +63,7 @@ public class OpenApiConfig {
                         
                         ## Features
                         - **Email/Password Authentication** - Traditional login and registration
+                        - **Passwordless OTP Login** - Phone and Email OTP-based authentication 🆕
                         - **Google OAuth2** - Web-based Google Sign-In
                         - **Mobile Google Sign-In** - Token-based Google authentication for React Native/mobile apps
                         - **JWT Tokens** - Stateless authentication with access and refresh tokens
@@ -77,6 +78,10 @@ public class OpenApiConfig {
                         3. When access token expires, use refresh token to get new tokens
                         4. Refresh tokens are rotated on each use for security
                         
+                        ## Passwordless OTP Login (NEW)
+                        - **Phone OTP**: POST `/api/auth/login/phone/send-otp` → POST `/api/auth/login/phone/verify`
+                        - **Email OTP**: POST `/api/auth/login/email/send-otp` → POST `/api/auth/login/email/verify`
+                        
                         ## Rate Limiting
                         - Login/Register: 10 requests/minute
                         - OTP/Verification: 5 requests/minute  
@@ -86,7 +91,7 @@ public class OpenApiConfig {
                         For React Native apps, use the `/api/auth/oauth2/google/mobile` endpoint
                         with Google Sign-In SDK to authenticate users.
                         """)
-                .version("1.0.0")
+                .version("1.1.0")
                 .contact(new Contact()
                         .name("FixHomi Team")
                         .email("support@fixhomi.com")

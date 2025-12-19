@@ -45,4 +45,14 @@ public interface EmailService {
      * @return true if email was sent successfully
      */
     boolean sendPasswordChangedNotification(String toEmail, String fullName);
+
+    /**
+     * Send OTP for passwordless login via email.
+     *
+     * @param toEmail recipient email address
+     * @param fullName recipient's full name
+     * @param otp the one-time password
+     * @return true if email was sent successfully
+     */
+    boolean sendLoginOtp(String toEmail, String fullName, String otp);
 }

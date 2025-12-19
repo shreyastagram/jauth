@@ -1,8 +1,8 @@
 {
   "info": {
-    "_postman_id": "fixhomi-auth-service-collection-v1",
+    "_postman_id": "fixhomi-auth-service-collection-v1.1",
     "name": "FixHomi Java Auth Service",
-    "description": "Complete API collection for FixHomi Java Auth Service. Import this collection and the environment file to test all endpoints.",
+    "description": "Complete API collection for FixHomi Java Auth Service v1.1.0.\n\n**New in v1.1.0:** Passwordless OTP Login (Phone & Email)\n\nImport this collection and the environment file to test all endpoints.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -288,6 +288,230 @@
         }
       ],
       "description": "Google OAuth2 authentication flow"
+    },
+    {
+      "name": "OTP Login (Passwordless) 🆕",
+      "item": [
+        {
+          "name": "📱 Phone OTP - Send OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"+1234567890\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/auth/login/phone/send-otp",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "auth", "login", "phone", "send-otp"]
+            },
+            "description": "Send OTP to phone number for passwordless login.\n\n**No authentication required.**\n**OTP validity:** 5 minutes\n**Rate limit:** 3 requests per minute\n\n**Note:** In development, check console logs for the OTP code (StubSmsService).\n\n**Response includes:**\n- maskedPhone: e.g., '+123***7890'\n- expiresInMinutes: 5"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"success\": true,\n  \"message\": \"OTP sent successfully to +123***7890\",\n  \"maskedPhone\": \"+123***7890\",\n  \"expiresInMinutes\": 5\n}"
+            },
+            {
+              "name": "User Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"success\": false,\n  \"message\": \"No account found with this phone number\"\n}"
+            },
+            {
+              "name": "Rate Limited",
+              "status": "Too Many Requests",
+              "code": 429,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"success\": false,\n  \"message\": \"Too many OTP requests. Please wait before trying again.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "📱 Phone OTP - Verify & Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('ACCESS_TOKEN', jsonData.accessToken);",
+                  "    pm.environment.set('REFRESH_TOKEN', jsonData.refreshToken);",
+                  "    pm.environment.set('USER_ID', jsonData.userId);",
+                  "    console.log('✅ Phone OTP Login successful - tokens saved');",
+                  "    console.log('User ID:', jsonData.userId);",
+                  "    console.log('Role:', jsonData.role);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"+1234567890\",\n  \"otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/auth/login/phone/verify",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "auth", "login", "phone", "verify"]
+            },
+            "description": "Verify phone OTP and complete passwordless login.\n\n**No authentication required.**\n**Max attempts:** 3 per OTP\n\n**Returns:** Same response as regular login (accessToken, refreshToken, user info)\n\n**Bonus:** Automatically verifies phone number on successful login."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzUxMiJ9...\",\n  \"refreshToken\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"tokenType\": \"Bearer\",\n  \"userId\": 1,\n  \"email\": \"user@example.com\",\n  \"fullName\": \"John Doe\",\n  \"role\": \"USER\",\n  \"expiresIn\": 86400\n}"
+            },
+            {
+              "name": "Invalid OTP",
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"success\": false,\n  \"message\": \"Invalid OTP code\"\n}"
+            },
+            {
+              "name": "OTP Expired",
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"success\": false,\n  \"message\": \"OTP has expired. Please request a new one.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "📧 Email OTP - Send OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/auth/login/email/send-otp",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "auth", "login", "email", "send-otp"]
+            },
+            "description": "Send OTP to email for passwordless login.\n\n**No authentication required.**\n**OTP validity:** 5 minutes\n**Rate limit:** 1 request per minute per email\n\n**Note:** In development, check console logs for the OTP code (StubEmailService).\n\n**Response includes:**\n- maskedEmail: e.g., 'u***@example.com'\n- expiresInMinutes: 5"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"success\": true,\n  \"message\": \"OTP sent successfully to u***@example.com\",\n  \"maskedEmail\": \"u***@example.com\",\n  \"expiresInMinutes\": 5\n}"
+            },
+            {
+              "name": "User Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"success\": false,\n  \"message\": \"No account found with this email address\"\n}"
+            },
+            {
+              "name": "Rate Limited",
+              "status": "Too Many Requests",
+              "code": 429,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"success\": false,\n  \"message\": \"Too many OTP requests. Please wait before trying again.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "📧 Email OTP - Verify & Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('ACCESS_TOKEN', jsonData.accessToken);",
+                  "    pm.environment.set('REFRESH_TOKEN', jsonData.refreshToken);",
+                  "    pm.environment.set('USER_ID', jsonData.userId);",
+                  "    console.log('✅ Email OTP Login successful - tokens saved');",
+                  "    console.log('User ID:', jsonData.userId);",
+                  "    console.log('Role:', jsonData.role);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/auth/login/email/verify",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "auth", "login", "email", "verify"]
+            },
+            "description": "Verify email OTP and complete passwordless login.\n\n**No authentication required.**\n**Max attempts:** 3 per OTP\n\n**Returns:** Same response as regular login (accessToken, refreshToken, user info)\n\n**Bonus:** Automatically verifies email on successful login."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzUxMiJ9...\",\n  \"refreshToken\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"tokenType\": \"Bearer\",\n  \"userId\": 1,\n  \"email\": \"user@example.com\",\n  \"fullName\": \"John Doe\",\n  \"role\": \"USER\",\n  \"expiresIn\": 86400\n}"
+            },
+            {
+              "name": "Invalid OTP",
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"success\": false,\n  \"message\": \"Invalid OTP code\"\n}"
+            },
+            {
+              "name": "OTP Expired",
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"success\": false,\n  \"message\": \"OTP has expired. Please request a new one.\"\n}"
+            }
+          ]
+        }
+      ],
+      "description": "🆕 Passwordless OTP-based login. No password required - just verify with OTP sent to phone or email.\n\n**Phone OTP Login:**\n1. POST /api/auth/login/phone/send-otp\n2. POST /api/auth/login/phone/verify\n\n**Email OTP Login:**\n1. POST /api/auth/login/email/send-otp\n2. POST /api/auth/login/email/verify\n\n**Features:**\n- OTP valid for 5 minutes\n- Max 3 verification attempts\n- Auto-verifies phone/email on success\n- Returns same tokens as regular login"
     },
     {
       "name": "Verification",

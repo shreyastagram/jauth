@@ -18,8 +18,10 @@ cd "$SCRIPT_DIR"
 # Load .env file if it exists
 if [ -f ".env" ]; then
     echo "📁 Loading environment from .env file..."
-    # Export all variables from .env
-    export $(grep -v '^#' .env | grep -v '^\s*$' | xargs)
+    # Export all variables from .env (handle multiline values)
+    set -a
+    source .env
+    set +a
 fi
 
 # Override profile if argument provided
@@ -34,7 +36,11 @@ echo ""
 echo "🚀 Starting FixHomi Auth Service"
 echo "   Profile: $SPRING_PROFILES_ACTIVE"
 echo "   Port: ${PORT:-8080}"
-echo "   Database URL: ${DATABASE_URL:0:50}..."
+if [ "$SPRING_PROFILES_ACTIVE" = "prod" ]; then
+    echo "   Database: PostgreSQL @ $DATABASE_HOST"
+else
+    echo "   Database: H2 (in-memory)"
+fi
 echo ""
 
 # Run the application with Spring profile

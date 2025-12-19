@@ -2,7 +2,7 @@
 
 > **Complete integration guide for React Native mobile app developers**  
 > **Last Updated:** December 2024  
-> **Auth Service Version:** 1.0.0
+> **Auth Service Version:** 1.1.0
 
 ---
 
@@ -32,6 +32,7 @@ This guide explains how to integrate the FixHomi Auth Service with your React Na
 - ✅ User registration and login
 - ✅ JWT-based authentication (24-hour access tokens)
 - ✅ Refresh tokens (7-day expiry with rotation)
+- ✅ **Passwordless OTP Login (Phone & Email)** 🆕
 - ✅ Email verification
 - ✅ Phone OTP verification
 - ✅ Password reset
@@ -187,8 +188,15 @@ export const ENDPOINTS = {
   VALIDATE_RESET_TOKEN: '/api/verification/reset-password/validate',
   RESET_PASSWORD: '/api/verification/reset-password',
   
+  // Passwordless OTP Login (NEW)
+  PHONE_OTP_LOGIN_SEND: '/api/auth/login/phone/send-otp',
+  PHONE_OTP_LOGIN_VERIFY: '/api/auth/login/phone/verify',
+  EMAIL_OTP_LOGIN_SEND: '/api/auth/login/email/send-otp',
+  EMAIL_OTP_LOGIN_VERIFY: '/api/auth/login/email/verify',
+  
   // OAuth
   GOOGLE_AUTH: '/oauth2/authorization/google',
+  GOOGLE_MOBILE_AUTH: '/api/auth/oauth2/google/mobile',
 };
 
 // User Roles
@@ -211,6 +219,8 @@ export const ERROR_MESSAGES = {
   INVALID_OTP: 'Invalid OTP. Please try again.',
   OTP_EXPIRED: 'OTP has expired. Please request a new one.',
   TOO_MANY_ATTEMPTS: 'Too many attempts. Please try again later.',
+  PHONE_NOT_REGISTERED: 'No account found with this phone number.',
+  EMAIL_NOT_REGISTERED: 'No account found with this email address.',
 };
 ```
 
@@ -420,6 +430,11 @@ apiClient.interceptors.request.use(
       ENDPOINTS.VALIDATE_RESET_TOKEN,
       ENDPOINTS.VERIFY_EMAIL,
       ENDPOINTS.HEALTH,
+      // Passwordless OTP Login endpoints (NEW)
+      ENDPOINTS.PHONE_OTP_LOGIN_SEND,
+      ENDPOINTS.PHONE_OTP_LOGIN_VERIFY,
+      ENDPOINTS.EMAIL_OTP_LOGIN_SEND,
+      ENDPOINTS.EMAIL_OTP_LOGIN_VERIFY,
     ];
     
     const isPublicEndpoint = publicEndpoints.some(
@@ -786,6 +801,80 @@ class AuthService {
   async validateToken() {
     const response = await apiClient.get(ENDPOINTS.VALIDATE_TOKEN);
     return response.data;
+  }
+  
+  // ==================== PASSWORDLESS OTP LOGIN (NEW) ====================
+  
+  /**
+   * Send OTP to phone number for passwordless login
+   * @param {string} phoneNumber - Phone number with country code
+   * @returns {Promise<Object>} { success, message, maskedPhone, expiresInMinutes }
+   */
+  async sendPhoneLoginOtp(phoneNumber) {
+    const response = await apiClient.post(ENDPOINTS.PHONE_OTP_LOGIN_SEND, {
+      phoneNumber,
+    });
+    return response.data;
+  }
+  
+  /**
+   * Verify phone OTP and complete passwordless login
+   * @param {string} phoneNumber - Phone number with country code
+   * @param {string} otp - 6-digit OTP code
+   * @returns {Promise<Object>} User data with tokens (same as regular login)
+   */
+  async verifyPhoneLoginOtp(phoneNumber, otp) {
+    const response = await apiClient.post(ENDPOINTS.PHONE_OTP_LOGIN_VERIFY, {
+      phoneNumber,
+      otp,
+    });
+    
+    const { accessToken, refreshToken, expiresIn, ...user } = response.data;
+    
+    // Store tokens
+    await tokenService.storeTokens(accessToken, refreshToken, expiresIn);
+    await tokenService.storeUserData(user);
+    
+    return {
+      user,
+      tokens: { accessToken, refreshToken, expiresIn },
+    };
+  }
+  
+  /**
+   * Send OTP to email for passwordless login
+   * @param {string} email - User's email address
+   * @returns {Promise<Object>} { success, message, maskedEmail, expiresInMinutes }
+   */
+  async sendEmailLoginOtp(email) {
+    const response = await apiClient.post(ENDPOINTS.EMAIL_OTP_LOGIN_SEND, {
+      email,
+    });
+    return response.data;
+  }
+  
+  /**
+   * Verify email OTP and complete passwordless login
+   * @param {string} email - User's email address
+   * @param {string} otp - 6-digit OTP code
+   * @returns {Promise<Object>} User data with tokens (same as regular login)
+   */
+  async verifyEmailLoginOtp(email, otp) {
+    const response = await apiClient.post(ENDPOINTS.EMAIL_OTP_LOGIN_VERIFY, {
+      email,
+      otp,
+    });
+    
+    const { accessToken, refreshToken, expiresIn, ...user } = response.data;
+    
+    // Store tokens
+    await tokenService.storeTokens(accessToken, refreshToken, expiresIn);
+    await tokenService.storeUserData(user);
+    
+    return {
+      user,
+      tokens: { accessToken, refreshToken, expiresIn },
+    };
   }
   
   /**
@@ -1300,6 +1389,140 @@ const fetchProfile = async () => {
 
 ---
 
+### 13. Passwordless Phone OTP Login 🆕
+
+**Step 1: Send OTP**
+
+**Endpoint:** `POST /api/auth/login/phone/send-otp`
+
+```javascript
+const handleSendPhoneLoginOtp = async (phoneNumber) => {
+  try {
+    setLoading(true);
+    
+    const result = await authService.sendPhoneLoginOtp(phoneNumber);
+    
+    Alert.alert(
+      'OTP Sent',
+      `Code sent to ${result.maskedPhone}. Valid for ${result.expiresInMinutes} minutes.`
+    );
+    
+    // Navigate to OTP verification screen
+    navigation.navigate('PhoneOtpVerify', { phoneNumber });
+    
+  } catch (error) {
+    if (error.status === 404) {
+      Alert.alert('Not Found', 'No account found with this phone number.');
+    } else if (error.status === 429) {
+      Alert.alert('Too Many Requests', 'Please wait before requesting another OTP.');
+    } else {
+      Alert.alert('Error', error.message);
+    }
+  } finally {
+    setLoading(false);
+  }
+};
+```
+
+**Step 2: Verify OTP and Login**
+
+**Endpoint:** `POST /api/auth/login/phone/verify`
+
+```javascript
+const handleVerifyPhoneLoginOtp = async (phoneNumber, otp) => {
+  try {
+    setLoading(true);
+    
+    // Using AuthContext for automatic state update
+    const { loginWithPhoneOtp } = useAuth();
+    const result = await loginWithPhoneOtp(phoneNumber, otp);
+    
+    console.log('Logged in as:', result.user.fullName);
+    // Navigation is handled automatically by AuthContext
+    
+  } catch (error) {
+    if (error.message.includes('expired')) {
+      Alert.alert('OTP Expired', 'Please request a new OTP.');
+    } else if (error.status === 429) {
+      Alert.alert('Too Many Attempts', 'Maximum attempts exceeded. Please request a new OTP.');
+    } else {
+      Alert.alert('Invalid OTP', 'Please check the code and try again.');
+    }
+  } finally {
+    setLoading(false);
+  }
+};
+```
+
+---
+
+### 14. Passwordless Email OTP Login 🆕
+
+**Step 1: Send OTP**
+
+**Endpoint:** `POST /api/auth/login/email/send-otp`
+
+```javascript
+const handleSendEmailLoginOtp = async (email) => {
+  try {
+    setLoading(true);
+    
+    const result = await authService.sendEmailLoginOtp(email);
+    
+    Alert.alert(
+      'OTP Sent',
+      `Code sent to ${result.maskedEmail}. Valid for ${result.expiresInMinutes} minutes.`
+    );
+    
+    // Navigate to OTP verification screen
+    navigation.navigate('EmailOtpVerify', { email });
+    
+  } catch (error) {
+    if (error.status === 404) {
+      Alert.alert('Not Found', 'No account found with this email address.');
+    } else if (error.status === 429) {
+      Alert.alert('Too Many Requests', 'Please wait before requesting another OTP.');
+    } else {
+      Alert.alert('Error', error.message);
+    }
+  } finally {
+    setLoading(false);
+  }
+};
+```
+
+**Step 2: Verify OTP and Login**
+
+**Endpoint:** `POST /api/auth/login/email/verify`
+
+```javascript
+const handleVerifyEmailLoginOtp = async (email, otp) => {
+  try {
+    setLoading(true);
+    
+    // Using AuthContext for automatic state update
+    const { loginWithEmailOtp } = useAuth();
+    const result = await loginWithEmailOtp(email, otp);
+    
+    console.log('Logged in as:', result.user.fullName);
+    // Navigation is handled automatically by AuthContext
+    
+  } catch (error) {
+    if (error.message.includes('expired')) {
+      Alert.alert('OTP Expired', 'Please request a new OTP.');
+    } else if (error.status === 429) {
+      Alert.alert('Too Many Attempts', 'Maximum attempts exceeded. Please request a new OTP.');
+    } else {
+      Alert.alert('Invalid OTP', 'Please check the code and try again.');
+    }
+  } finally {
+    setLoading(false);
+  }
+};
+```
+
+---
+
 ## Context & State Management
 
 ### `src/context/AuthContext.js`
@@ -1370,6 +1593,21 @@ export const AuthProvider = ({ children }) => {
     return profile;
   };
 
+  // Passwordless OTP Login methods (NEW)
+  const loginWithPhoneOtp = async (phoneNumber, otp) => {
+    const result = await authService.verifyPhoneLoginOtp(phoneNumber, otp);
+    setUser(result.user);
+    setIsAuthenticated(true);
+    return result;
+  };
+
+  const loginWithEmailOtp = async (email, otp) => {
+    const result = await authService.verifyEmailLoginOtp(email, otp);
+    setUser(result.user);
+    setIsAuthenticated(true);
+    return result;
+  };
+
   const value = {
     user,
     loading,
@@ -1379,6 +1617,11 @@ export const AuthProvider = ({ children }) => {
     logout,
     refreshUser,
     checkAuthState,
+    // OTP Login methods (NEW)
+    loginWithPhoneOtp,
+    loginWithEmailOtp,
+    sendPhoneLoginOtp: authService.sendPhoneLoginOtp.bind(authService),
+    sendEmailLoginOtp: authService.sendEmailLoginOtp.bind(authService),
   };
 
   return (

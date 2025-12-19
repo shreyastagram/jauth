@@ -72,6 +72,11 @@ public class SecurityConfig {
                         "/api/auth/reset-password/validate",
                         "/api/auth/email/verify",
                         "/api/auth/oauth2/google/mobile",  // Mobile Google Sign-In
+                        // Passwordless OTP Login endpoints
+                        "/api/auth/login/phone/send-otp",
+                        "/api/auth/login/phone/verify",
+                        "/api/auth/login/email/send-otp",
+                        "/api/auth/login/email/verify",
                         "/oauth2/**",
                         "/login/oauth2/**",
                         "/actuator/health",
