@@ -1,0 +1,117 @@
+spring:
+  application:
+    name: auth-service
+  
+  # H2 Database Configuration (Development)
+  datasource:
+    url: jdbc:h2:mem:fixhomi_auth
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: 
+  
+  # H2 Console (for development/debugging)
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  
+  # JPA/Hibernate Configuration
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        '[format_sql]': true
+        dialect: org.hibernate.dialect.H2Dialect
+    open-in-view: false
+
+  # OAuth2 Client Configuration (Google)
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: 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
+            client-secret: 524781184814-nkbud6c3r44b1plqpm77p27ejfi3de3j.apps.googleusercontent.com
+            scope:
+              - email
+              - profile
+            redirect-uri: '{baseUrl}/oauth2/callback/google'
+        provider:
+          google:
+            authorization-uri: https://accounts.google.com/o/oauth2/v2/auth
+            token-uri: https://oauth2.googleapis.com/token
+            user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
+            user-name-attribute: email
+
+# JWT Configuration
+jwt:
+  secret: your-256-bit-secret-key-change-this-in-production-minimum-32-characters-required
+  expiration:
+    ms: 86400000  # 24 hours in milliseconds
+  issuer: fixhomi-auth-service
+  refresh-token:
+    expiration:
+      days: 7  # Refresh token validity in days
+
+# Server Configuration
+server:
+  port: 8080
+  servlet:
+    context-path: /
+  error:
+    include-message: always
+    include-binding-errors: always
+
+# Logging Configuration
+logging:
+  level:
+    '[com.fixhomi.auth]': DEBUG
+    '[org.springframework.security]': DEBUG
+    '[org.hibernate.SQL]': DEBUG
+    '[org.hibernate.type.descriptor.sql.BasicBinder]': TRACE
+
+# FixHomi Application Configuration
+fixhomi:
+  # Verification settings
+  verification:
+    # OTP (Phone verification) settings
+    otp:
+      expiration-minutes: 5
+      max-attempts: 3
+      length: 6
+      rate-limit-minutes: 1
+      rate-limit-max-requests: 3
+    
+    # Email verification settings
+    email:
+      expiration-hours: 24
+      rate-limit-minutes: 5
+      base-url: ${FIXHOMI_BASE_URL:http://localhost:8080}
+    
+    # Password reset settings
+    password-reset:
+      expiration-hours: 1
+      rate-limit-minutes: 5
+      base-url: ${FIXHOMI_FRONTEND_URL:http://localhost:3000}
+  
+  # Notification services configuration
+  notification:
+    # Email service configuration
+    email:
+      # Provider: 'stub' for development, 'brevo' for production
+      provider: ${EMAIL_PROVIDER:stub}
+      brevo:
+        api-key: ${BREVO_API_KEY:}
+        sender-email: ${BREVO_SENDER_EMAIL:noreply@fixhomi.com}
+        sender-name: ${BREVO_SENDER_NAME:FixHomi}
+    
+    # SMS service configuration  
+    sms:
+      # Provider: 'stub' for development, 'twilio' for production
+      provider: ${SMS_PROVIDER:stub}
+      twilio:
+        account-sid: ${TWILIO_ACCOUNT_SID:}
+        auth-token: ${TWILIO_AUTH_TOKEN:}
+        phone-number: ${TWILIO_PHONE_NUMBER:}

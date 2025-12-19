@@ -1,0 +1,177 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ----------------------< com.fixhomi:auth-service >----------------------
+[INFO] Building auth-service 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] >>> spring-boot:3.4.12:run (default-cli) > test-compile @ auth-service >>>
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ auth-service ---
+[INFO] Copying 1 resource from src/main/resources to target/classes
+[INFO] Copying 0 resource from src/main/resources to target/classes
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ auth-service ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ auth-service ---
+[INFO] skip non existing resourceDirectory /Users/shreyashsureshborkar/AXXXSXX/AXXASXX_App/FIXORA/FIXORA_APP/java_auth-fxmi/jarbac/src/test/resources
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ auth-service ---
+[INFO] Recompiling the module because of changed source code.
+[INFO] Compiling 1 source file with javac [debug parameters release 17] to target/test-classes
+[INFO] 
+[INFO] <<< spring-boot:3.4.12:run (default-cli) < test-compile @ auth-service <<<
+[INFO] 
+[INFO] 
+[INFO] --- spring-boot:3.4.12:run (default-cli) @ auth-service ---
+[INFO] Attaching agents: []
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::               (v3.4.12)
+
+2025-12-19T11:21:42.043+05:30  INFO 8031 --- [auth-service] [           main] c.fixhomi.auth.AuthServiceApplication    : Starting AuthServiceApplication using Java 17.0.15 with PID 8031 (/Users/shreyashsureshborkar/AXXXSXX/AXXASXX_App/FIXORA/FIXORA_APP/java_auth-fxmi/jarbac/target/classes started by shreyashsureshborkar in /Users/shreyashsureshborkar/AXXXSXX/AXXASXX_App/FIXORA/FIXORA_APP/java_auth-fxmi/jarbac)
+2025-12-19T11:21:42.043+05:30 DEBUG 8031 --- [auth-service] [           main] c.fixhomi.auth.AuthServiceApplication    : Running with Spring Boot v3.4.12, Spring v6.2.14
+2025-12-19T11:21:42.044+05:30  INFO 8031 --- [auth-service] [           main] c.fixhomi.auth.AuthServiceApplication    : No active profile set, falling back to 1 default profile: "default"
+2025-12-19T11:21:42.324+05:30  INFO 8031 --- [auth-service] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2025-12-19T11:21:42.346+05:30  INFO 8031 --- [auth-service] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 18 ms. Found 2 JPA repository interfaces.
+2025-12-19T11:21:42.648+05:30  INFO 8031 --- [auth-service] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8080 (http)
+2025-12-19T11:21:42.653+05:30  INFO 8031 --- [auth-service] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2025-12-19T11:21:42.653+05:30  INFO 8031 --- [auth-service] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.49]
+2025-12-19T11:21:42.697+05:30  INFO 8031 --- [auth-service] [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2025-12-19T11:21:42.698+05:30  INFO 8031 --- [auth-service] [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 638 ms
+2025-12-19T11:21:42.770+05:30  INFO 8031 --- [auth-service] [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2025-12-19T11:21:42.797+05:30  INFO 8031 --- [auth-service] [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.6.36.Final
+2025-12-19T11:21:42.812+05:30  INFO 8031 --- [auth-service] [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2025-12-19T11:21:42.924+05:30  INFO 8031 --- [auth-service] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2025-12-19T11:21:42.937+05:30  INFO 8031 --- [auth-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2025-12-19T11:21:43.013+05:30  INFO 8031 --- [auth-service] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection conn0: url=jdbc:h2:mem:fixhomi_auth user=SA
+2025-12-19T11:21:43.014+05:30  INFO 8031 --- [auth-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2025-12-19T11:21:43.026+05:30  WARN 8031 --- [auth-service] [           main] org.hibernate.orm.deprecation            : HHH90000025: H2Dialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2025-12-19T11:21:43.034+05:30  INFO 8031 --- [auth-service] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-1)']
+	Database driver: undefined/unknown
+	Database version: 2.3.232
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2025-12-19T11:21:43.397+05:30  INFO 8031 --- [auth-service] [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2025-12-19T11:21:43.416+05:30 DEBUG 8031 --- [auth-service] [           main] org.hibernate.SQL                        : 
+    create table refresh_tokens (
+        id bigint generated by default as identity,
+        created_at timestamp(6) not null,
+        expires_at timestamp(6) not null,
+        revoked boolean not null,
+        token varchar(255) not null,
+        user_id bigint not null,
+        primary key (id)
+    )
+Hibernate: 
+    create table refresh_tokens (
+        id bigint generated by default as identity,
+        created_at timestamp(6) not null,
+        expires_at timestamp(6) not null,
+        revoked boolean not null,
+        token varchar(255) not null,
+        user_id bigint not null,
+        primary key (id)
+    )
+2025-12-19T11:21:43.420+05:30 DEBUG 8031 --- [auth-service] [           main] org.hibernate.SQL                        : 
+    create table users (
+        id bigint generated by default as identity,
+        created_at timestamp(6) not null,
+        email varchar(100) not null,
+        full_name varchar(100) not null,
+        is_active boolean not null,
+        is_email_verified boolean not null,
+        is_phone_verified boolean not null,
+        last_login_at timestamp(6),
+        password_hash varchar(60),
+        phone_number varchar(20),
+        role enum ('ADMIN','IT_ADMIN','SERVICE_PROVIDER','SUPPORT','USER') not null,
+        updated_at timestamp(6) not null,
+        primary key (id)
+    )
+Hibernate: 
+    create table users (
+        id bigint generated by default as identity,
+        created_at timestamp(6) not null,
+        email varchar(100) not null,
+        full_name varchar(100) not null,
+        is_active boolean not null,
+        is_email_verified boolean not null,
+        is_phone_verified boolean not null,
+        last_login_at timestamp(6),
+        password_hash varchar(60),
+        phone_number varchar(20),
+        role enum ('ADMIN','IT_ADMIN','SERVICE_PROVIDER','SUPPORT','USER') not null,
+        updated_at timestamp(6) not null,
+        primary key (id)
+    )
+2025-12-19T11:21:43.420+05:30 DEBUG 8031 --- [auth-service] [           main] org.hibernate.SQL                        : 
+    create index idx_refresh_token_user_id 
+       on refresh_tokens (user_id)
+Hibernate: 
+    create index idx_refresh_token_user_id 
+       on refresh_tokens (user_id)
+2025-12-19T11:21:43.421+05:30 DEBUG 8031 --- [auth-service] [           main] org.hibernate.SQL                        : 
+    alter table if exists refresh_tokens 
+       drop constraint if exists idx_refresh_token
+Hibernate: 
+    alter table if exists refresh_tokens 
+       drop constraint if exists idx_refresh_token
+2025-12-19T11:21:43.421+05:30 DEBUG 8031 --- [auth-service] [           main] org.hibernate.SQL                        : 
+    alter table if exists refresh_tokens 
+       add constraint idx_refresh_token unique (token)
+Hibernate: 
+    alter table if exists refresh_tokens 
+       add constraint idx_refresh_token unique (token)
+2025-12-19T11:21:43.422+05:30 DEBUG 8031 --- [auth-service] [           main] org.hibernate.SQL                        : 
+    create index idx_phone 
+       on users (phone_number)
+Hibernate: 
+    create index idx_phone 
+       on users (phone_number)
+2025-12-19T11:21:43.422+05:30 DEBUG 8031 --- [auth-service] [           main] org.hibernate.SQL                        : 
+    alter table if exists users 
+       drop constraint if exists idx_email
+Hibernate: 
+    alter table if exists users 
+       drop constraint if exists idx_email
+2025-12-19T11:21:43.422+05:30 DEBUG 8031 --- [auth-service] [           main] org.hibernate.SQL                        : 
+    alter table if exists users 
+       add constraint idx_email unique (email)
+Hibernate: 
+    alter table if exists users 
+       add constraint idx_email unique (email)
+2025-12-19T11:21:43.422+05:30 DEBUG 8031 --- [auth-service] [           main] org.hibernate.SQL                        : 
+    alter table if exists refresh_tokens 
+       add constraint FK1lih5y2npsf8u5o3vhdb9y0os 
+       foreign key (user_id) 
+       references users
+Hibernate: 
+    alter table if exists refresh_tokens 
+       add constraint FK1lih5y2npsf8u5o3vhdb9y0os 
+       foreign key (user_id) 
+       references users
+2025-12-19T11:21:43.425+05:30  INFO 8031 --- [auth-service] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2025-12-19T11:21:43.599+05:30 DEBUG 8031 --- [auth-service] [           main] c.f.a.security.JwtAuthenticationFilter   : Filter 'jwtAuthenticationFilter' configured for use
+2025-12-19T11:21:43.619+05:30  INFO 8031 --- [auth-service] [           main] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
+2025-12-19T11:21:43.966+05:30 DEBUG 8031 --- [auth-service] [           main] swordEncoderAuthenticationManagerBuilder : No authenticationProviders and no parentAuthenticationManager defined. Returning null.
+2025-12-19T11:21:44.170+05:30 DEBUG 8031 --- [auth-service] [           main] o.s.s.web.DefaultSecurityFilterChain     : Will secure any request with filters: DisableEncodeUrlFilter, WebAsyncManagerIntegrationFilter, SecurityContextHolderFilter, HeaderWriterFilter, CorsFilter, LogoutFilter, OAuth2AuthorizationRequestRedirectFilter, OAuth2LoginAuthenticationFilter, JwtAuthenticationFilter, DefaultResourcesFilter, DefaultLoginPageGeneratingFilter, DefaultLogoutPageGeneratingFilter, RequestCacheAwareFilter, SecurityContextHolderAwareRequestFilter, AnonymousAuthenticationFilter, SessionManagementFilter, ExceptionTranslationFilter, AuthorizationFilter
+2025-12-19T11:21:44.295+05:30  INFO 8031 --- [auth-service] [           main] o.s.b.a.h2.H2ConsoleAutoConfiguration    : H2 console available at '/h2-console'. Database available at 'jdbc:h2:mem:fixhomi_auth'
+2025-12-19T11:21:44.348+05:30  INFO 8031 --- [auth-service] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8080 (http) with context path '/'
+2025-12-19T11:21:44.353+05:30  INFO 8031 --- [auth-service] [           main] c.fixhomi.auth.AuthServiceApplication    : Started AuthServiceApplication in 2.478 seconds (process running for 2.615)
+2025-12-19T11:22:47.535+05:30  INFO 8031 --- [auth-service] [nio-8080-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2025-12-19T11:22:47.536+05:30  INFO 8031 --- [auth-service] [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2025-12-19T11:22:47.541+05:30  INFO 8031 --- [auth-service] [nio-8080-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 5 ms
+2025-12-19T11:22:47.552+05:30 DEBUG 8031 --- [auth-service] [nio-8080-exec-1] o.s.security.web.FilterChainProxy        : Securing GET /api/auth/health
+2025-12-19T11:22:47.558+05:30 DEBUG 8031 --- [auth-service] [nio-8080-exec-1] o.s.s.w.a.AnonymousAuthenticationFilter  : Set SecurityContextHolder to anonymous SecurityContext
+2025-12-19T11:22:47.561+05:30 DEBUG 8031 --- [auth-service] [nio-8080-exec-1] o.s.security.web.FilterChainProxy        : Secured GET /api/auth/health
