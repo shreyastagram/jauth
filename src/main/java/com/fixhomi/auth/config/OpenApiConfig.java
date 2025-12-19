@@ -90,8 +90,14 @@ public class OpenApiConfig {
                         ## Mobile Integration
                         For React Native apps, use the `/api/auth/oauth2/google/mobile` endpoint
                         with Google Sign-In SDK to authenticate users.
+                        
+                        ## Login Options
+                        - Email + Password: POST /api/auth/login
+                        - Phone + Password: POST /api/auth/login/phone 🆕
+                        - Phone OTP (Passwordless): POST /api/auth/login/phone/send-otp → verify
+                        - Email OTP (Passwordless): POST /api/auth/login/email/send-otp → verify
                         """)
-                .version("1.1.0")
+                .version("1.2.0")
                 .contact(new Contact()
                         .name("FixHomi Team")
                         .email("support@fixhomi.com")

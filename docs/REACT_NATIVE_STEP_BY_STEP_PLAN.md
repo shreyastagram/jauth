@@ -22,7 +22,8 @@ This guide covers the **mobile app integration** for FixHomi Auth Service. The m
 | # | API | Method | Purpose | Auth Required |
 |---|-----|--------|---------|---------------|
 | 1 | `/api/auth/register` | POST | Register new user/provider | ❌ No |
-| 2 | `/api/auth/login` | POST | Login user/provider | ❌ No |
+| 2 | `/api/auth/login` | POST | Login with email+password | ❌ No |
+| **2b** | `/api/auth/login/phone` | POST | **Login with phone+password** 🆕 | ❌ No |
 | 3 | `/api/auth/logout` | POST | Logout (revoke refresh token) | ✅ Yes |
 | 4 | `/api/auth/refresh` | POST | Get new access token | ❌ No |
 | 5 | `/api/auth/health` | GET | Check service status | ❌ No |

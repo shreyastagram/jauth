@@ -165,6 +165,7 @@ export const ENDPOINTS = {
   // Auth
   REGISTER: '/api/auth/register',
   LOGIN: '/api/auth/login',
+  LOGIN_PHONE: '/api/auth/login/phone',  // 🆕 Phone + Password login
   LOGOUT: '/api/auth/logout',
   REFRESH: '/api/auth/refresh',
   HEALTH: '/api/auth/health',
@@ -423,6 +424,7 @@ apiClient.interceptors.request.use(
     // Skip auth header for public endpoints
     const publicEndpoints = [
       ENDPOINTS.LOGIN,
+      ENDPOINTS.LOGIN_PHONE,  // 🆕 Phone + Password login
       ENDPOINTS.REGISTER,
       ENDPOINTS.REFRESH,
       ENDPOINTS.FORGOT_PASSWORD,
@@ -593,6 +595,30 @@ class AuthService {
   async login(email, password) {
     const response = await apiClient.post(ENDPOINTS.LOGIN, {
       email,
+      password,
+    });
+    
+    const { accessToken, refreshToken, expiresIn, ...user } = response.data;
+    
+    // Store tokens
+    await tokenService.storeTokens(accessToken, refreshToken, expiresIn);
+    await tokenService.storeUserData(user);
+    
+    return {
+      user,
+      tokens: { accessToken, refreshToken, expiresIn },
+    };
+  }
+  
+  /**
+   * Login user with phone number 🆕
+   * @param {string} phoneNumber - E.164 format (+1234567890)
+   * @param {string} password
+   * @returns {Promise<Object>} User data with tokens
+   */
+  async loginWithPhone(phoneNumber, password) {
+    const response = await apiClient.post(ENDPOINTS.LOGIN_PHONE, {
+      phoneNumber,
       password,
     });
     
@@ -1001,6 +1027,61 @@ const handleLogin = async (email, password) => {
   }
 };
 ```
+
+---
+
+### 2b. Login with Phone Number 🆕
+
+**Endpoint:** `POST /api/auth/login/phone`
+
+Users can also login using their phone number and password (alternative to email login).
+
+```javascript
+const handlePhoneLogin = async (phoneNumber, password) => {
+  try {
+    setLoading(true);
+    
+    const response = await apiClient.post('/api/auth/login/phone', {
+      phoneNumber: phoneNumber,  // E.164 format: +1234567890
+      password: password
+    });
+    
+    // Store tokens securely
+    await tokenService.saveTokens(response.data.accessToken, response.data.refreshToken);
+    
+    console.log('Logged in as:', response.data.user.fullName);
+    console.log('Role:', response.data.user.role);
+    
+    // Navigate based on role
+    if (response.data.user.role === 'SERVICE_PROVIDER') {
+      navigation.replace('ProviderHome');
+    } else {
+      navigation.replace('UserHome');
+    }
+    
+  } catch (error) {
+    if (error.response?.status === 401) {
+      Alert.alert('Login Failed', 'Invalid phone number or password');
+    } else if (error.response?.status === 404) {
+      Alert.alert('Login Failed', 'No account found with this phone number');
+    } else {
+      Alert.alert('Error', error.response?.data?.message || 'Login failed');
+    }
+  } finally {
+    setLoading(false);
+  }
+};
+```
+
+**Request Format:**
+```json
+{
+  "phoneNumber": "+1234567890",
+  "password": "YourPassword123!"
+}
+```
+
+**Response:** Same as email login (LoginResponse with tokens and user info)
 
 ---
 

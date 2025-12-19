@@ -323,6 +323,85 @@ async function loginUser(email, password) {
 
 ---
 
+#### 2b. Login with Phone Number 🆕
+
+Authenticates user with phone number and password (alternative to email login).
+
+```http
+POST /api/auth/login/phone
+```
+
+**Request Body:**
+```json
+{
+  "phoneNumber": "+1234567890",
+  "password": "SecurePass123!"
+}
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "accessToken": "eyJhbGciOiJIUzUxMiJ9...",
+  "refreshToken": "550e8400-e29b-41d4-a716-446655440000",
+  "tokenType": "Bearer",
+  "userId": 1,
+  "email": "john.doe@example.com",
+  "fullName": "John Doe",
+  "role": "USER",
+  "expiresIn": 86400
+}
+```
+
+**Error Responses:**
+
+| Status | Error | Description |
+|--------|-------|-------------|
+| 401 | Authentication Failed | Invalid phone number or password |
+| 401 | Account Disabled | User account is disabled |
+| 404 | User Not Found | No account found with this phone number |
+
+**Node.js Example:**
+```javascript
+async function loginWithPhone(phoneNumber, password) {
+  try {
+    const response = await axios.post(
+      `${process.env.AUTH_SERVICE_URL}/api/auth/login/phone`,
+      { phoneNumber, password }
+    );
+    
+    return {
+      success: true,
+      user: {
+        id: response.data.userId,
+        email: response.data.email,
+        name: response.data.fullName,
+        role: response.data.role
+      },
+      tokens: {
+        accessToken: response.data.accessToken,
+        refreshToken: response.data.refreshToken,
+        expiresIn: response.data.expiresIn
+      }
+    };
+  } catch (error) {
+    if (error.response?.status === 401) {
+      const message = error.response.data.message;
+      if (message.includes('disabled')) {
+        throw new Error('Account is disabled. Please contact support.');
+      }
+      throw new Error('Invalid phone number or password');
+    }
+    if (error.response?.status === 404) {
+      throw new Error('No account found with this phone number');
+    }
+    throw error;
+  }
+}
+```
+
+---
+
 #### 3. Logout
 
 Revokes the refresh token (access token remains valid until expiry).
@@ -1597,7 +1676,8 @@ console.log('JWT Secret (first 10 chars):', process.env.JWT_SECRET?.substring(0,
 | Operation | Endpoint | Method | Auth Required |
 |-----------|----------|--------|---------------|
 | Register | `/api/auth/register` | POST | No |
-| Login | `/api/auth/login` | POST | No |
+| Login (Email) | `/api/auth/login` | POST | No |
+| Login (Phone) 🆕 | `/api/auth/login/phone` | POST | No |
 | Logout | `/api/auth/logout` | POST | Yes |
 | Refresh Token | `/api/auth/refresh` | POST | No |
 | Validate Token | `/api/auth/token/validate` | GET | Yes |

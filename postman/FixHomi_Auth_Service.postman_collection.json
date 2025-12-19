@@ -78,6 +78,74 @@
           ]
         },
         {
+          "name": "Login with Phone",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('ACCESS_TOKEN', jsonData.accessToken);",
+                  "    pm.environment.set('REFRESH_TOKEN', jsonData.refreshToken);",
+                  "    pm.environment.set('USER_ID', jsonData.userId);",
+                  "    console.log('✅ Tokens saved successfully (Phone Login)');",
+                  "    console.log('User ID:', jsonData.userId);",
+                  "    console.log('Role:', jsonData.role);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"+1234567890\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/auth/login/phone",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "auth", "login", "phone"]
+            },
+            "description": "🆕 Login with phone number and password (alternative to email login).\n\n**Request:**\n- phoneNumber: E.164 format (+1234567890)\n- password: User's password\n\n**Response:** Same as email login\n- accessToken (JWT, 24h validity)\n- refreshToken (UUID, 7 days validity)\n- userId, email, fullName, role\n- expiresIn (seconds)"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"phoneNumber\": \"+1234567890\",\n  \"password\": \"password123\"\n}"
+                },
+                "url": {
+                  "raw": "{{BASE_URL}}/api/auth/login/phone",
+                  "host": ["{{BASE_URL}}"],
+                  "path": ["api", "auth", "login", "phone"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzUxMiJ9...\",\n  \"refreshToken\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"userId\": 1,\n  \"email\": \"user@example.com\",\n  \"fullName\": \"John Doe\",\n  \"role\": \"USER\",\n  \"expiresIn\": 86400\n}"
+            }
+          ]
+        },
+        {
           "name": "Register (USER)",
           "event": [
             {

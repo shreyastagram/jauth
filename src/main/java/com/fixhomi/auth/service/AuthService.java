@@ -2,6 +2,7 @@ package com.fixhomi.auth.service;
 
 import com.fixhomi.auth.dto.LoginRequest;
 import com.fixhomi.auth.dto.LoginResponse;
+import com.fixhomi.auth.dto.PhoneLoginRequest;
 import com.fixhomi.auth.dto.RegisterRequest;
 import com.fixhomi.auth.entity.RefreshToken;
 import com.fixhomi.auth.entity.Role;
@@ -157,5 +158,68 @@ public class AuthService {
                 user.getRole(),
                 jwtService.getExpirationTimeInSeconds()
         );
+    }
+
+    /**
+     * Authenticate user with phone number and password.
+     *
+     * @param phoneLoginRequest login credentials with phone number
+     * @return login response with JWT token
+     */
+    @Transactional
+    public LoginResponse loginWithPhone(PhoneLoginRequest phoneLoginRequest) {
+        logger.debug("Login attempt for phone: {}", maskPhoneNumber(phoneLoginRequest.getPhoneNumber()));
+
+        // Find user by phone number
+        User user = userRepository.findByPhoneNumber(phoneLoginRequest.getPhoneNumber())
+                .orElseThrow(() -> new AuthenticationException("Invalid phone number or password"));
+
+        // Check if user is active
+        if (!user.getIsActive()) {
+            throw new AuthenticationException("Account is deactivated. Please contact support.");
+        }
+
+        // Verify password
+        if (!passwordEncoder.matches(phoneLoginRequest.getPassword(), user.getPasswordHash())) {
+            throw new AuthenticationException("Invalid phone number or password");
+        }
+
+        // Update last login timestamp
+        user.setLastLoginAt(LocalDateTime.now());
+        userRepository.save(user);
+
+        // Generate JWT token
+        String accessToken = jwtService.generateAccessToken(
+                user.getId(),
+                user.getEmail(),
+                user.getRole()
+        );
+
+        // Generate refresh token
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
+
+        logger.info("User logged in via phone successfully: {} (role: {})", 
+                maskPhoneNumber(phoneLoginRequest.getPhoneNumber()), user.getRole());
+
+        return new LoginResponse(
+                accessToken,
+                refreshToken.getToken(),
+                user.getId(),
+                user.getEmail(),
+                user.getFullName(),
+                user.getRole(),
+                jwtService.getExpirationTimeInSeconds()
+        );
+    }
+
+    /**
+     * Mask phone number for logging (privacy protection).
+     */
+    private String maskPhoneNumber(String phoneNumber) {
+        if (phoneNumber == null || phoneNumber.length() < 7) {
+            return "***";
+        }
+        int len = phoneNumber.length();
+        return phoneNumber.substring(0, 4) + "***" + phoneNumber.substring(len - 4);
     }
 }

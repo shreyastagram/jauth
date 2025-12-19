@@ -2,6 +2,7 @@ package com.fixhomi.auth.controller;
 
 import com.fixhomi.auth.dto.LoginRequest;
 import com.fixhomi.auth.dto.LoginResponse;
+import com.fixhomi.auth.dto.PhoneLoginRequest;
 import com.fixhomi.auth.dto.LogoutRequest;
 import com.fixhomi.auth.dto.MessageResponse;
 import com.fixhomi.auth.dto.RefreshTokenRequest;
@@ -57,6 +58,26 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest loginRequest) {
         LoginResponse response = authService.login(loginRequest);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Phone login endpoint.
+     * POST /api/auth/login/phone
+     *
+     * @param phoneLoginRequest login credentials with phone number
+     * @return JWT token and user info
+     */
+    @Operation(summary = "User Login with Phone", description = "Authenticate with phone number and password to receive JWT tokens")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Login successful",
+            content = @Content(schema = @Schema(implementation = LoginResponse.class))),
+        @ApiResponse(responseCode = "401", description = "Invalid credentials"),
+        @ApiResponse(responseCode = "429", description = "Too many login attempts")
+    })
+    @PostMapping("/login/phone")
+    public ResponseEntity<LoginResponse> loginWithPhone(@Valid @RequestBody PhoneLoginRequest phoneLoginRequest) {
+        LoginResponse response = authService.loginWithPhone(phoneLoginRequest);
         return ResponseEntity.ok(response);
     }
 
