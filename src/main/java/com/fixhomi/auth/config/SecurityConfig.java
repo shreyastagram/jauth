@@ -71,10 +71,17 @@ public class SecurityConfig {
                         "/api/auth/reset-password",
                         "/api/auth/reset-password/validate",
                         "/api/auth/email/verify",
+                        "/api/auth/oauth2/google/mobile",  // Mobile Google Sign-In
                         "/oauth2/**",
                         "/login/oauth2/**",
                         "/actuator/health",
-                        "/h2-console/**"
+                        "/actuator/health/**",
+                        "/actuator/info",
+                        "/h2-console/**",
+                        // OpenAPI/Swagger endpoints
+                        "/v3/api-docs/**",
+                        "/swagger-ui/**",
+                        "/swagger-ui.html"
                     ).permitAll()
                     
                     // Admin endpoints - protected by @PreAuthorize at method level
@@ -119,17 +126,26 @@ public class SecurityConfig {
     }
 
     /**
-     * CORS configuration to allow Node.js services and frontend to access this service.
+     * CORS configuration to allow frontends and mobile apps to access this service.
+     * Note: Mobile native apps (React Native, iOS, Android) don't need CORS,
+     * but WebViews and web frontends do.
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         
         // Allow specific origins (configure based on your environment)
+        // For production, add your actual domain names
         configuration.setAllowedOrigins(List.of(
-            "http://localhost:3000",    // Node.js service
+            "http://localhost:3000",    // Node.js service / React dev
             "http://localhost:4200",    // Angular frontend
-            "http://localhost:5173"     // Vite/React frontend
+            "http://localhost:5173",    // Vite/React frontend
+            "http://localhost:8081",    // Expo/React Native web
+            "http://localhost:19006",   // Expo web
+            "https://fixhomi.com",      // Production domain
+            "https://www.fixhomi.com",  // Production www
+            "https://app.fixhomi.com",  // Production app subdomain
+            "https://api.fixhomi.com"   // Production API
         ));
         
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));

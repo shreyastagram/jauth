@@ -11,6 +11,12 @@ import com.fixhomi.auth.entity.User;
 import com.fixhomi.auth.security.JwtService;
 import com.fixhomi.auth.service.AuthService;
 import com.fixhomi.auth.service.RefreshTokenService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -22,6 +28,7 @@ import org.springframework.web.bind.annotation.*;
  */
 @RestController
 @RequestMapping("/api/auth")
+@Tag(name = "Authentication", description = "Core authentication endpoints for login, registration, and token management")
 public class AuthController {
 
     @Autowired
@@ -40,6 +47,13 @@ public class AuthController {
      * @param loginRequest login credentials
      * @return JWT token and user info
      */
+    @Operation(summary = "User Login", description = "Authenticate with email and password to receive JWT tokens")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Login successful",
+            content = @Content(schema = @Schema(implementation = LoginResponse.class))),
+        @ApiResponse(responseCode = "401", description = "Invalid credentials"),
+        @ApiResponse(responseCode = "429", description = "Too many login attempts")
+    })
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest loginRequest) {
         LoginResponse response = authService.login(loginRequest);
@@ -53,6 +67,13 @@ public class AuthController {
      * @param registerRequest registration details
      * @return JWT token and user info
      */
+    @Operation(summary = "User Registration", description = "Register a new user account (USER or SERVICE_PROVIDER roles only)")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "201", description = "Registration successful",
+            content = @Content(schema = @Schema(implementation = LoginResponse.class))),
+        @ApiResponse(responseCode = "400", description = "Invalid input"),
+        @ApiResponse(responseCode = "409", description = "Email or phone already exists")
+    })
     @PostMapping("/register")
     public ResponseEntity<LoginResponse> register(@Valid @RequestBody RegisterRequest registerRequest) {
         LoginResponse response = authService.register(registerRequest);
@@ -68,6 +89,12 @@ public class AuthController {
      * @param request refresh token
      * @return new access token and refresh token
      */
+    @Operation(summary = "Refresh Tokens", description = "Exchange refresh token for new access and refresh tokens (rotation)")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Tokens refreshed",
+            content = @Content(schema = @Schema(implementation = LoginResponse.class))),
+        @ApiResponse(responseCode = "401", description = "Invalid or expired refresh token")
+    })
     @PostMapping("/refresh")
     public ResponseEntity<LoginResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
         // Rotate refresh token (validates and revokes old, creates new)
@@ -101,6 +128,11 @@ public class AuthController {
      * @param request refresh token to revoke
      * @return success message
      */
+    @Operation(summary = "Logout", description = "Revoke the refresh token to log out")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Logout successful"),
+        @ApiResponse(responseCode = "400", description = "Invalid refresh token")
+    })
     @PostMapping("/logout")
     public ResponseEntity<MessageResponse> logout(@Valid @RequestBody LogoutRequest request) {
         refreshTokenService.revokeToken(request.getRefreshToken());
@@ -109,10 +141,12 @@ public class AuthController {
 
     /**
      * Health check endpoint.
-     * GET /api/health
+     * GET /api/auth/health
      *
      * @return health status
      */
+    @Operation(summary = "Health Check", description = "Check if the auth service is running")
+    @ApiResponse(responseCode = "200", description = "Service is healthy")
     @GetMapping("/health")
     public ResponseEntity<HealthResponse> health() {
         return ResponseEntity.ok(new HealthResponse("UP", "Auth service is running"));

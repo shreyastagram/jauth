@@ -32,13 +32,15 @@ spring:
     open-in-view: false
 
   # OAuth2 Client Configuration (Google)
+  # NOTE: Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env file
+  # Get credentials from: https://console.cloud.google.com/apis/credentials
   security:
     oauth2:
       client:
         registration:
           google:
-            client-id: ${GOOGLE_CLIENT_ID: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}
-            client-secret: ${GOOGLE_CLIENT_SECRET:524781184814-nkbud6c3r44b1plqpm77p27ejfi3de3j.apps.googleusercontent.com}
+            client-id: ${GOOGLE_CLIENT_ID:your-google-client-id}
+            client-secret: ${GOOGLE_CLIENT_SECRET:your-google-client-secret}
             scope:
               - email
               - profile
@@ -120,3 +122,61 @@ fixhomi:
         account-sid: ${TWILIO_ACCOUNT_SID:}
         auth-token: ${TWILIO_AUTH_TOKEN:}
         phone-number: ${TWILIO_PHONE_NUMBER:}
+
+  # Rate limiting configuration
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    auth:
+      requests-per-minute: 10
+    otp:
+      requests-per-minute: 5
+    general:
+      requests-per-minute: 100
+  
+  # OAuth configuration for mobile apps
+  oauth:
+    google:
+      # iOS and Android client IDs from same Google Cloud project
+      # These are DIFFERENT from the web client ID
+      ios-client-id: ${GOOGLE_IOS_CLIENT_ID:}
+      android-client-id: ${GOOGLE_ANDROID_CLIENT_ID:}
+  
+  # API configuration
+  api:
+    base-url: ${FIXHOMI_BASE_URL:http://localhost:8080}
+
+# Spring Boot Actuator configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  info:
+    env:
+      enabled: true
+
+# Application info for actuator
+info:
+  app:
+    name: FixHomi Auth Service
+    description: JWT-based authentication microservice
+    version: 1.0.0
+  java:
+    version: ${java.version}
+
+# OpenAPI/Swagger configuration
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha
+    disable-swagger-default-url: true
+
