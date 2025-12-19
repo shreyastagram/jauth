@@ -1,0 +1,128 @@
+# ============================================================
+# PRODUCTION CONFIGURATION - Neon PostgreSQL
+# ============================================================
+# Start with: ./run.sh        (uses prod profile by default)
+#         or: ./run.sh prod
+#
+# Environment variables are loaded from .env file by run.sh
+# ============================================================
+
+spring:
+  application:
+    name: auth-service
+  
+  # PostgreSQL Database Configuration (Neon)
+  # JDBC URL is built from separate components in .env:
+  # DATABASE_HOST, DATABASE_NAME, DATABASE_USERNAME, DATABASE_PASSWORD
+  datasource:
+    url: jdbc:postgresql://${DATABASE_HOST}/${DATABASE_NAME}?sslmode=require
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    
+    # Connection pool settings (HikariCP)
+    hikari:
+      maximum-pool-size: 5        # Neon free tier has connection limits
+      minimum-idle: 1
+      idle-timeout: 30000         # 30 seconds
+      connection-timeout: 20000   # 20 seconds
+      max-lifetime: 1800000       # 30 minutes
+  
+  # Disable H2 Console in production
+  h2:
+    console:
+      enabled: false
+  
+  # JPA/Hibernate Configuration
+  jpa:
+    hibernate:
+      ddl-auto: update            # Use 'validate' in strict production
+    show-sql: false               # Disable SQL logging in production
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        '[format_sql]': false
+    open-in-view: false
+
+  # OAuth2 Client Configuration (Google)
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            scope:
+              - email
+              - profile
+            redirect-uri: '{baseUrl}/oauth2/callback/google'
+        provider:
+          google:
+            authorization-uri: https://accounts.google.com/o/oauth2/v2/auth
+            token-uri: https://oauth2.googleapis.com/token
+            user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
+            user-name-attribute: email
+
+
+# JWT Configuration
+jwt:
+  # IMPORTANT: Use a strong, unique secret in production!
+  # Generate with: openssl rand -base64 64
+  secret: ${JWT_SECRET}
+  expiration:
+    ms: 86400000  # 24 hours
+  issuer: fixhomi-auth-service
+  refresh-token:
+    expiration:
+      days: 7
+
+# Server Configuration
+server:
+  port: ${PORT:8080}
+  servlet:
+    context-path: /
+  error:
+    include-message: always
+    include-binding-errors: always
+
+# Logging Configuration (reduced for production)
+logging:
+  level:
+    '[com.fixhomi.auth]': INFO
+    '[org.springframework.security]': WARN
+    '[org.hibernate.SQL]': WARN
+    root: INFO
+
+# FixHomi Application Configuration
+fixhomi:
+  verification:
+    otp:
+      expiration-minutes: 5
+      max-attempts: 3
+      length: 6
+      rate-limit-minutes: 1
+      rate-limit-max-requests: 3
+    email:
+      expiration-hours: 24
+      rate-limit-minutes: 5
+      base-url: ${FIXHOMI_BASE_URL:https://api.fixhomi.com}
+    password-reset:
+      expiration-hours: 1
+      rate-limit-minutes: 5
+      base-url: ${FIXHOMI_FRONTEND_URL:https://app.fixhomi.com}
+  
+  notification:
+    email:
+      # Use 'stub' for testing, 'brevo' for production emails
+      provider: ${EMAIL_PROVIDER:stub}
+      brevo:
+        api-key: ${BREVO_API_KEY:}
+        sender-email: ${BREVO_SENDER_EMAIL:noreply@fixhomi.com}
+        sender-name: ${BREVO_SENDER_NAME:FixHomi}
+    sms:
+      # Use 'stub' for testing, 'twilio' for production SMS
+      provider: ${SMS_PROVIDER:stub}
+      twilio:
+        account-sid: ${TWILIO_ACCOUNT_SID:}
+        auth-token: ${TWILIO_AUTH_TOKEN:}
+        phone-number: ${TWILIO_PHONE_NUMBER:}

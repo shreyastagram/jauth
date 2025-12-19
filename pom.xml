@@ -92,12 +92,18 @@
 			<scope>runtime</scope>
 		</dependency>
 
+		<!-- PostgreSQL driver for production (Neon, Supabase, etc.) -->
+		<dependency>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+
 		<!-- OAuth2 Client for Google login -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-oauth2-client</artifactId>
 		</dependency>
-
 
 	</dependencies>
 

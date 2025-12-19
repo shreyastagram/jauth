@@ -2,6 +2,11 @@ spring:
   application:
     name: auth-service
   
+  # Profile is set via SPRING_PROFILES_ACTIVE environment variable
+  # Use ./run.sh to start - it loads .env automatically
+  # Or: ./run.sh dev   (for H2 development mode)
+  # Or: ./run.sh prod  (for PostgreSQL production mode)
+  
   # H2 Database Configuration (Development)
   datasource:
     url: jdbc:h2:mem:fixhomi_auth
@@ -32,8 +37,8 @@ spring:
       client:
         registration:
           google:
-            client-id: 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
-            client-secret: 524781184814-nkbud6c3r44b1plqpm77p27ejfi3de3j.apps.googleusercontent.com
+            client-id: ${GOOGLE_CLIENT_ID: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}
+            client-secret: ${GOOGLE_CLIENT_SECRET:524781184814-nkbud6c3r44b1plqpm77p27ejfi3de3j.apps.googleusercontent.com}
             scope:
               - email
               - profile
@@ -47,7 +52,7 @@ spring:
 
 # JWT Configuration
 jwt:
-  secret: your-256-bit-secret-key-change-this-in-production-minimum-32-characters-required
+  secret: ${JWT_SECRET:your-256-bit-secret-key-change-this-in-production-minimum-32-characters-required}
   expiration:
     ms: 86400000  # 24 hours in milliseconds
   issuer: fixhomi-auth-service
