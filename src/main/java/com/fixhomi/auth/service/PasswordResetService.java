@@ -2,7 +2,6 @@ package com.fixhomi.auth.service;
 
 import com.fixhomi.auth.entity.PasswordResetToken;
 import com.fixhomi.auth.entity.User;
-import com.fixhomi.auth.exception.TooManyRequestsException;
 import com.fixhomi.auth.exception.VerificationException;
 import com.fixhomi.auth.repository.PasswordResetTokenRepository;
 import com.fixhomi.auth.repository.UserRepository;
