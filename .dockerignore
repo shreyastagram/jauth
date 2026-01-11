@@ -1,0 +1,51 @@
+# Build artifacts
+target/
+*.jar
+*.war
+*.ear
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+.project
+.classpath
+.settings/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Test files
+src/test/
+
+# Maven wrapper (already in image)
+.mvn/
+mvnw
+mvnw.cmd
+
+# Scripts
+run.sh
+*.sh
+
+# Postman collections
+postman/
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
