@@ -27,15 +27,27 @@
 
 Go to your web service → Environment tab → Add:
 
+**Minimal (for testing):**
 ```
-MAIL_USERNAME=your-email@gmail.com
-MAIL_PASSWORD=your-gmail-app-password
-TWILIO_ACCOUNT_SID=your-twilio-sid
-TWILIO_AUTH_TOKEN=your-twilio-token
+EMAIL_PROVIDER=stub
+SMS_PROVIDER=stub
+```
+
+**Full Production:**
+```
+EMAIL_PROVIDER=brevo
+BREVO_API_KEY=xkeysib-your-key
+SMS_PROVIDER=twilio
+TWILIO_ACCOUNT_SID=your-sid
+TWILIO_AUTH_TOKEN=your-token
 TWILIO_PHONE_NUMBER=+1234567890
-OAUTH2_GOOGLE_CLIENT_ID=your-google-client-id
-OAUTH2_GOOGLE_CLIENT_SECRET=your-google-secret
+GOOGLE_CLIENT_ID=your-web-client-id
+GOOGLE_CLIENT_SECRET=your-secret
+GOOGLE_IOS_CLIENT_ID=your-ios-client-id
+GOOGLE_ANDROID_CLIENT_ID=your-android-client-id
 ```
+
+**⚠️ Note:** Database variables (DATABASE_*) are auto-set by render.yaml
 
 Click "Save Changes" → Auto-redeploy happens
 

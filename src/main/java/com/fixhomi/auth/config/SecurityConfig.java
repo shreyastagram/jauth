@@ -4,6 +4,7 @@ import com.fixhomi.auth.security.JwtAuthenticationFilter;
 import com.fixhomi.auth.security.OAuth2AuthenticationFailureHandler;
 import com.fixhomi.auth.security.OAuth2AuthenticationSuccessHandler;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -40,6 +41,9 @@ public class SecurityConfig {
 
     @Autowired
     private OAuth2AuthenticationFailureHandler oAuth2FailureHandler;
+    
+    @Value("${fixhomi.cors.allowed-origins}")
+    private String allowedOrigins;
 
     /**
      * Configure HTTP security with JWT authentication.
@@ -132,27 +136,24 @@ public class SecurityConfig {
     }
 
     /**
-     * CORS configuration to allow frontends and mobile apps to access this service.
-     * Note: Mobile native apps (React Native, iOS, Android) don't need CORS,
-     * but WebViews and web frontends do.
+     * CORS configuration to allow frontends, mobile apps, and backend services to access this service.
+     * 
+     * NEW FLOW: React Native → Node.js Backend (port 5001) → Java Auth
+     * 
+     * Configured via environment variable: ALLOWED_ORIGINS
+     * 
+     * Note: 
+     * - Mobile native apps (React Native, iOS, Android) don't need CORS
+     * - But Node.js backend making HTTP calls DOES need CORS
+     * - WebViews and web frontends also need CORS
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         
-        // Allow specific origins (configure based on your environment)
-        // For production, add your actual domain names
-        configuration.setAllowedOrigins(List.of(
-            "http://localhost:3000",    // Node.js service / React dev
-            "http://localhost:4200",    // Angular frontend
-            "http://localhost:5173",    // Vite/React frontend
-            "http://localhost:8081",    // Expo/React Native web
-            "http://localhost:19006",   // Expo web
-            "https://fixhomi.com",      // Production domain
-            "https://www.fixhomi.com",  // Production www
-            "https://app.fixhomi.com",  // Production app subdomain
-            "https://api.fixhomi.com"   // Production API
-        ));
+        // Parse comma-separated allowed origins from environment
+        List<String> origins = Arrays.asList(allowedOrigins.split(","));
+        configuration.setAllowedOrigins(origins);
         
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));

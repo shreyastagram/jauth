@@ -99,25 +99,28 @@ JWT_REFRESH_EXPIRATION_MS=604800000
 DATABASE_HOST=<from-render-postgres>
 DATABASE_PORT=5432
 DATABASE_NAME=fixhomi_auth
-DATABASE_USER=<from-render-postgres>
+DATABASE_USERNAME=<from-render-postgres>
 DATABASE_PASSWORD=<from-render-postgres>
 ```
 
+**⚠️ Important:** Your app uses `DATABASE_USERNAME` (not `DATABASE_USER`)
+
 ### Email (Gmail Example)
 ```env
-MAIL_HOST=smtp.gmail.com
-MAIL_PORT=587
-MAIL_USERNAME=your-email@gmail.com
-MAIL_PASSWORD=your-app-password
+EMAIL_PROVIDER=brevo
+BREVO_API_KEY=xkeysib-your-api-key
+BREVO_SENDER_EMAIL=noreply@fixhomi.com
+BREVO_SENDER_NAME=FixHomi
 ```
 
-**Gmail Setup:**
-- Enable 2-Factor Authentication
-- Generate App Password: https://myaccount.google.com/apppasswords
-- Use the generated 16-character password
+**Brevo Setup (formerly SendinBlue):**
+- Sign up at https://www.brevo.com/ (free tier available)
+- Go to Settings → API Keys → Create new key
+- Use the key above
 
-### SMS (Twilio)
-```env
+**For development/testing:** Set `EMAIL_PROVIDER=stub` (emails logged, not sent)
+
+SMS_PROVIDER=twilio
 TWILIO_ACCOUNT_SID=your-account-sid
 TWILIO_AUTH_TOKEN=your-auth-token
 TWILIO_PHONE_NUMBER=+1234567890
@@ -125,19 +128,33 @@ TWILIO_PHONE_NUMBER=+1234567890
 
 **Twilio Setup:**
 - Sign up at https://www.twilio.com/
-- Get free trial credits
+- Get free trial credits ($15 credit)
 - Get credentials from Twilio Console
 
-### OAuth2 (Google)
+**For development/testing:** Set `SMS_PROVIDER=stub` (SMS logged, not sent)
+- Get free trial credits
+
+#### Web OAuth
 ```env
-OAUTH2_GOOGLE_CLIENT_ID=your-client-id
-OAUTH2_GOOGLE_CLIENT_SECRET=your-client-secret
-OAUTH2_GOOGLE_REDIRECT_URI=https://your-app.onrender.com/api/auth/oauth2/google/callback
+GOOGLE_CLIENT_ID=your-client-id
+GOOGLE_CLIENT_SECRET=your-client-secret
+```
+
+#### Mobile OAuth (React Native)
+```env
+GOOGLE_IOS_CLIENT_ID=your-ios-client-id
+GOOGLE_ANDROID_CLIENT_ID=your-android-client-id
 ```
 
 **Google OAuth Setup:**
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create new project or select existing
+3. Enable Google+ API
+4. Create OAuth 2.0 credentials:
+   - **Web application** - for web/backend
+   - **iOS** - for React Native iOS app
+   - **Android** - for React Native Android app
+5. Add authorized redirect URI: `https://your-app.onrender.com/oauth2/callback/google
 3. Enable Google+ API
 4. Create OAuth 2.0 credentials
 5. Add authorized redirect URI: `https://your-app.onrender.com/api/auth/oauth2/google/callback`

@@ -144,6 +144,15 @@ fixhomi:
   # API configuration
   api:
     base-url: ${FIXHOMI_BASE_URL:http://localhost:8080}
+  
+  # CORS configuration for security
+  cors:
+    # Comma-separated list of allowed origins
+    allowed-origins: ${ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5001,http://localhost:8081}
+  
+  # Backend services URLs
+  backend:
+    nodejs-url: ${NODEJS_BACKEND_URL:http://localhost:5001}
 
 # Spring Boot Actuator configuration
 management:

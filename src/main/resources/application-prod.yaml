@@ -95,6 +95,14 @@ logging:
 
 # FixHomi Application Configuration
 fixhomi:
+  # CORS configuration for production
+  cors:
+    allowed-origins: ${ALLOWED_ORIGINS:https://app.fixhomi.com,https://api.fixhomi.com}
+  
+  # Backend services URLs
+  backend:
+    nodejs-url: ${NODEJS_BACKEND_URL}
+  
   verification:
     otp:
       expiration-minutes: 5
