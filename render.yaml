@@ -33,31 +33,23 @@ services:
       - key: JWT_REFRESH_EXPIRATION_MS
         value: 604800000  # 7 days
       
-      # Database (PostgreSQL) - Will be auto-populated when you add a database
+      # Database (PostgreSQL) - Using Neon PostgreSQL
+      # IMPORTANT: Set these values in Render Dashboard > Environment
+      # Get your credentials from: https://console.neon.tech
       - key: DATABASE_HOST
-        fromDatabase:
-          name: fixhomi-auth-db
-          property: host
+        sync: false  # Set manually: ep-xxxxx-pooler.region.aws.neon.tech
       
       - key: DATABASE_PORT
-        fromDatabase:
-          name: fixhomi-auth-db
-          property: port
+        value: 5432
       
       - key: DATABASE_NAME
-        fromDatabase:
-          name: fixhomi-auth-db
-          property: database
+        sync: false  # Set manually: neondb (or your database name)
       
       - key: DATABASE_USERNAME
-        fromDatabase:
-          name: fixhomi-auth-db
-          property: user
+        sync: false  # Set manually: neondb_owner (or your username)
       
       - key: DATABASE_PASSWORD
-        fromDatabase:
-          name: fixhomi-auth-db
-          property: password
+        sync: false  # Set manually in Render dashboard (keep secret!)
       
       # Notification Provider Settings
       - key: EMAIL_PROVIDER
@@ -107,6 +99,15 @@ services:
       - key: FIXHOMI_FRONTEND_URL
         value: https://app.fixhomi.com  # Update with your frontend URL
       
+      # Node.js Backend URL (for inter-service communication)
+      - key: NODEJS_BACKEND_URL
+        sync: false  # Set to your deployed Node.js backend URL
+      
+      # CORS - Allowed Origins (comma-separated)
+      # Add your frontend URL, Node.js backend URL, and any other clients
+      - key: ALLOWED_ORIGINS
+        sync: false  # Example: https://app.fixhomi.com,https://api.fixhomi.com
+      
       # Rate Limiting
       - key: RATE_LIMIT_ENABLED
         value: true
@@ -114,9 +115,10 @@ services:
     # Health check endpoint
     healthCheckPath: /actuator/health
 
-# Database - PostgreSQL
-databases:
-  - name: fixhomi-auth-db
-    databaseName: fixhomi_auth
-    plan: free  # Options: free, starter, standard, pro
-    region: oregon  # Must match service region
+# NOTE: We're using Neon PostgreSQL instead of Render's database
+# Remove or comment out this section if you don't need Render's PostgreSQL
+# databases:
+#   - name: fixhomi-auth-db
+#     databaseName: fixhomi_auth
+#     plan: free  # Options: free, starter, standard, pro
+#     region: oregon  # Must match service region
