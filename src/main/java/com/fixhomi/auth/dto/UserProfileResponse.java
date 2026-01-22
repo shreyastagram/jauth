@@ -7,29 +7,43 @@ import java.time.LocalDateTime;
 /**
  * Response DTO for user profile information.
  * Used by GET /api/users/me endpoint.
+ * Returns complete user profile including verification status.
  */
 public class UserProfileResponse {
 
     private Long userId;
     private String email;
+    private String phoneNumber;
     private String fullName;
     private Role role;
     private Boolean isActive;
+    private Boolean isEmailVerified;
+    private Boolean isPhoneVerified;
     private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
     private LocalDateTime lastLoginAt;
 
     // Constructors
     public UserProfileResponse() {
     }
 
-    public UserProfileResponse(Long userId, String email, String fullName, Role role,
-                               Boolean isActive, LocalDateTime createdAt, LocalDateTime lastLoginAt) {
+    /**
+     * Full constructor with all user profile fields.
+     */
+    public UserProfileResponse(Long userId, String email, String phoneNumber, String fullName, 
+                               Role role, Boolean isActive, Boolean isEmailVerified, 
+                               Boolean isPhoneVerified, LocalDateTime createdAt, 
+                               LocalDateTime updatedAt, LocalDateTime lastLoginAt) {
         this.userId = userId;
         this.email = email;
+        this.phoneNumber = phoneNumber;
         this.fullName = fullName;
         this.role = role;
         this.isActive = isActive;
+        this.isEmailVerified = isEmailVerified;
+        this.isPhoneVerified = isPhoneVerified;
         this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
         this.lastLoginAt = lastLoginAt;
     }
 
@@ -48,6 +62,14 @@ public class UserProfileResponse {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    public String getPhoneNumber() {
+        return phoneNumber;
+    }
+
+    public void setPhoneNumber(String phoneNumber) {
+        this.phoneNumber = phoneNumber;
     }
 
     public String getFullName() {
@@ -74,12 +96,36 @@ public class UserProfileResponse {
         this.isActive = isActive;
     }
 
+    public Boolean getIsEmailVerified() {
+        return isEmailVerified;
+    }
+
+    public void setIsEmailVerified(Boolean isEmailVerified) {
+        this.isEmailVerified = isEmailVerified;
+    }
+
+    public Boolean getIsPhoneVerified() {
+        return isPhoneVerified;
+    }
+
+    public void setIsPhoneVerified(Boolean isPhoneVerified) {
+        this.isPhoneVerified = isPhoneVerified;
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
     }
 
     public LocalDateTime getLastLoginAt() {

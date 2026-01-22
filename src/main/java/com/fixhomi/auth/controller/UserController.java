@@ -2,6 +2,7 @@ package com.fixhomi.auth.controller;
 
 import com.fixhomi.auth.dto.ChangePasswordRequest;
 import com.fixhomi.auth.dto.MessageResponse;
+import com.fixhomi.auth.dto.UpdateProfileRequest;
 import com.fixhomi.auth.dto.UserProfileResponse;
 import com.fixhomi.auth.service.UserService;
 import jakarta.validation.Valid;
@@ -31,6 +32,20 @@ public class UserController {
     public ResponseEntity<UserProfileResponse> getCurrentUserProfile() {
         String email = getCurrentUserEmail();
         UserProfileResponse profile = userService.getUserProfile(email);
+        return ResponseEntity.ok(profile);
+    }
+
+    /**
+     * Update authenticated user's profile.
+     * PUT /api/users/profile
+     *
+     * @param request update profile request with fullName and/or phoneNumber
+     * @return updated user profile
+     */
+    @PutMapping("/profile")
+    public ResponseEntity<UserProfileResponse> updateProfile(@Valid @RequestBody UpdateProfileRequest request) {
+        String email = getCurrentUserEmail();
+        UserProfileResponse profile = userService.updateProfile(email, request);
         return ResponseEntity.ok(profile);
     }
 

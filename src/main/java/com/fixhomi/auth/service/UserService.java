@@ -3,6 +3,7 @@ package com.fixhomi.auth.service;
 import com.fixhomi.auth.dto.AdminCreateUserRequest;
 import com.fixhomi.auth.dto.ChangePasswordRequest;
 import com.fixhomi.auth.dto.MessageResponse;
+import com.fixhomi.auth.dto.UpdateProfileRequest;
 import com.fixhomi.auth.dto.UpdateUserStatusRequest;
 import com.fixhomi.auth.dto.UserProfileResponse;
 import com.fixhomi.auth.entity.Role;
@@ -38,9 +39,10 @@ public class UserService {
 
     /**
      * Get user profile by email (from JWT).
+     * Returns complete user profile including verification status.
      *
      * @param email user's email from JWT token
-     * @return user profile response
+     * @return user profile response with all fields
      */
     public UserProfileResponse getUserProfile(String email) {
         User user = userRepository.findByEmail(email)
@@ -49,10 +51,14 @@ public class UserService {
         return new UserProfileResponse(
                 user.getId(),
                 user.getEmail(),
+                user.getPhoneNumber(),
                 user.getFullName(),
                 user.getRole(),
                 user.getIsActive(),
+                user.getIsEmailVerified(),
+                user.getIsPhoneVerified(),
                 user.getCreatedAt(),
+                user.getUpdatedAt(),
                 user.getLastLoginAt()
         );
     }
@@ -88,6 +94,59 @@ public class UserService {
         return new MessageResponse("Password changed successfully");
     }
 
+    // /**
+    //  * Update user profile (name, phone).
+    //  * Allows authenticated users to update their own profile.
+    //  *
+    //  * @param email user's email from JWT token
+    //  * @param request update profile request
+    //  * @return updated user profile
+    //  */
+    @Transactional
+    public UserProfileResponse updateProfile(String email, UpdateProfileRequest request) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
+
+        // Update full name if provided
+        if (request.getFullName() != null && !request.getFullName().isBlank()) {
+            user.setFullName(request.getFullName().trim());
+            logger.debug("Updating fullName for user: {}", email);
+        }
+
+        // Update phone number if provided
+        if (request.getPhoneNumber() != null) {
+            // Check if phone number is already used by another user
+            if (!request.getPhoneNumber().isBlank()) {
+                boolean phoneExists = userRepository.existsByPhoneNumber(request.getPhoneNumber());
+                if (phoneExists && !request.getPhoneNumber().equals(user.getPhoneNumber())) {
+                    throw new DuplicateResourceException("User", "phoneNumber", request.getPhoneNumber());
+                }
+                user.setPhoneNumber(request.getPhoneNumber().trim());
+            } else {
+                user.setPhoneNumber(null); // Allow clearing phone number
+            }
+            logger.debug("Updating phoneNumber for user: {}", email);
+        }
+
+        user = userRepository.save(user);
+
+        logger.info("Profile updated successfully for user: {}", email);
+
+        return new UserProfileResponse(
+                user.getId(),
+                user.getEmail(),
+                user.getPhoneNumber(),
+                user.getFullName(),
+                user.getRole(),
+                user.getIsActive(),
+                user.getIsEmailVerified(),
+                user.getIsPhoneVerified(),
+                user.getCreatedAt(),
+                user.getUpdatedAt(),
+                user.getLastLoginAt()
+        );
+    }
+
     /**
      * Update user account status (Admin only).
      *
@@ -115,10 +174,14 @@ public class UserService {
         return new UserProfileResponse(
                 user.getId(),
                 user.getEmail(),
+                user.getPhoneNumber(),
                 user.getFullName(),
                 user.getRole(),
                 user.getIsActive(),
+                user.getIsEmailVerified(),
+                user.getIsPhoneVerified(),
                 user.getCreatedAt(),
+                user.getUpdatedAt(),
                 user.getLastLoginAt()
         );
     }
@@ -171,10 +234,14 @@ public class UserService {
         return new UserProfileResponse(
                 user.getId(),
                 user.getEmail(),
+                user.getPhoneNumber(),
                 user.getFullName(),
                 user.getRole(),
                 user.getIsActive(),
+                user.getIsEmailVerified(),
+                user.getIsPhoneVerified(),
                 user.getCreatedAt(),
+                user.getUpdatedAt(),
                 user.getLastLoginAt()
         );
     }

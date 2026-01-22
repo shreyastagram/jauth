@@ -922,7 +922,7 @@
       "name": "User",
       "item": [
         {
-          "name": "Get My Profile",
+          "name": "Get My Profile (Full Details)",
           "request": {
             "auth": {
               "type": "bearer",
@@ -946,15 +946,29 @@
               "host": ["{{BASE_URL}}"],
               "path": ["api", "users", "me"]
             },
-            "description": "Get authenticated user's profile from database.\n\n**Returns:** id, email, fullName, role, isActive, createdAt, lastLoginAt"
+            "description": "Get authenticated user's complete profile from database.\n\n**Returns ALL user fields:**\n- userId: Unique user ID\n- email: User's email address\n- phoneNumber: User's phone number (nullable)\n- fullName: User's full name\n- role: USER, SERVICE_PROVIDER, ADMIN, IT_ADMIN, SUPPORT\n- isActive: Account active status\n- isEmailVerified: Email verification status\n- isPhoneVerified: Phone verification status\n- createdAt: Account creation timestamp\n- updatedAt: Last update timestamp\n- lastLoginAt: Last login timestamp (nullable)\n\n**Use this endpoint to:**\n- Display user profile in app\n- Check verification status\n- Show complete user details on profile page"
           },
           "response": [
             {
-              "name": "Success",
+              "name": "Success - USER",
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
-              "body": "{\n  \"id\": 1,\n  \"email\": \"user@example.com\",\n  \"fullName\": \"John Doe\",\n  \"role\": \"USER\",\n  \"isActive\": true,\n  \"createdAt\": \"2025-12-19T10:00:00\",\n  \"lastLoginAt\": \"2025-12-19T12:00:00\"\n}"
+              "body": "{\n  \"userId\": 32,\n  \"email\": \"user@example.com\",\n  \"phoneNumber\": \"+1234567890\",\n  \"fullName\": \"John Doe\",\n  \"role\": \"USER\",\n  \"isActive\": true,\n  \"isEmailVerified\": true,\n  \"isPhoneVerified\": false,\n  \"createdAt\": \"2026-01-18T12:16:13.744722\",\n  \"updatedAt\": \"2026-01-18T12:16:13.744722\",\n  \"lastLoginAt\": \"2026-01-18T14:30:00.000000\"\n}"
+            },
+            {
+              "name": "Success - SERVICE_PROVIDER",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"userId\": 34,\n  \"email\": \"provider@example.com\",\n  \"phoneNumber\": \"9090909090\",\n  \"fullName\": \"ABC Services\",\n  \"role\": \"SERVICE_PROVIDER\",\n  \"isActive\": true,\n  \"isEmailVerified\": false,\n  \"isPhoneVerified\": false,\n  \"createdAt\": \"2026-01-18T14:48:18.449517\",\n  \"updatedAt\": \"2026-01-18T14:48:18.449517\",\n  \"lastLoginAt\": null\n}"
+            },
+            {
+              "name": "Error - Unauthorized",
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"error\": \"Unauthorized\",\n  \"message\": \"Full authentication is required to access this resource\"\n}"
             }
           ]
         },
@@ -1000,6 +1014,65 @@
               "code": 200,
               "_postman_previewlanguage": "json",
               "body": "{\n  \"message\": \"Password changed successfully\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ACCESS_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Updated Name\",\n  \"phoneNumber\": \"+1234567890\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/users/profile",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "users", "profile"]
+            },
+            "description": "Update authenticated user's profile.\n\n**Request fields (all optional):**\n- fullName: 2-100 characters\n- phoneNumber: max 20 characters (can be null to clear)\n\n**Notes:**\n- Only provided fields are updated\n- Phone number uniqueness is enforced\n- Returns complete updated user profile\n\n**Use this endpoint to:**\n- Update user's display name\n- Update phone number\n- Sync profile changes from frontend"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"userId\": 32,\n  \"email\": \"user@example.com\",\n  \"phoneNumber\": \"+1234567890\",\n  \"fullName\": \"Updated Name\",\n  \"role\": \"USER\",\n  \"isActive\": true,\n  \"isEmailVerified\": true,\n  \"isPhoneVerified\": false,\n  \"createdAt\": \"2026-01-18T12:16:13.744722\",\n  \"updatedAt\": \"2026-01-18T14:30:00.000000\",\n  \"lastLoginAt\": \"2026-01-18T14:30:00.000000\"\n}"
+            },
+            {
+              "name": "Error - Duplicate Phone",
+              "status": "Conflict",
+              "code": 409,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"error\": \"Conflict\",\n  \"message\": \"User already exists with phoneNumber: +1234567890\"\n}"
+            },
+            {
+              "name": "Error - Validation Failed",
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"error\": \"Validation Failed\",\n  \"message\": \"Full name must be between 2 and 100 characters\"\n}"
             }
           ]
         }
