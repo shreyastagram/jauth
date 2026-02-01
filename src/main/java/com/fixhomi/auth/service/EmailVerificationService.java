@@ -102,11 +102,30 @@ public class EmailVerificationService {
      */
     @Transactional
     public String verifyEmail(String token) {
+        logger.info("📧 Attempting to verify email with token: {}...", token.substring(0, Math.min(10, token.length())));
+        
+        // First check if token exists at all (including verified ones)
+        var anyToken = tokenRepository.findByToken(token);
+        if (anyToken.isEmpty()) {
+            logger.error("❌ Token not found in database at all. Token may have been created in a different database.");
+            throw new VerificationException("Invalid or expired verification token");
+        }
+        
+        EmailVerificationToken foundToken = anyToken.get();
+        logger.info("📧 Found token - verified: {}, expiresAt: {}, email: {}", 
+            foundToken.getVerified(), foundToken.getExpiresAt(), foundToken.getEmail());
+        
+        if (foundToken.getVerified()) {
+            logger.info("✅ Token already verified, email is already confirmed");
+            throw new VerificationException("Email has already been verified. You can log in now.");
+        }
+        
         EmailVerificationToken verificationToken = tokenRepository
                 .findByTokenAndVerifiedFalse(token)
                 .orElseThrow(() -> new VerificationException("Invalid or expired verification token"));
 
         if (verificationToken.isExpired()) {
+            logger.warn("⏰ Token expired at: {}, current time: {}", verificationToken.getExpiresAt(), LocalDateTime.now());
             throw new VerificationException("Verification token has expired. Please request a new one.");
         }
 

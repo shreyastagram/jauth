@@ -16,6 +16,7 @@ public class LoginResponse {
     private String fullName;
     private Role role;
     private Long expiresIn; // seconds
+    private Boolean isNewUser; // For Google OAuth - indicates if this is a new registration
 
     // Constructors
     public LoginResponse() {
@@ -29,6 +30,18 @@ public class LoginResponse {
         this.fullName = fullName;
         this.role = role;
         this.expiresIn = expiresIn;
+        this.isNewUser = false;
+    }
+
+    public LoginResponse(String accessToken, String refreshToken, Long userId, String email, String fullName, Role role, Long expiresIn, Boolean isNewUser) {
+        this.accessToken = accessToken;
+        this.refreshToken = refreshToken;
+        this.userId = userId;
+        this.email = email;
+        this.fullName = fullName;
+        this.role = role;
+        this.expiresIn = expiresIn;
+        this.isNewUser = isNewUser;
     }
 
     // Getters and Setters
@@ -94,5 +107,13 @@ public class LoginResponse {
 
     public void setExpiresIn(Long expiresIn) {
         this.expiresIn = expiresIn;
+    }
+
+    public Boolean getIsNewUser() {
+        return isNewUser;
+    }
+
+    public void setIsNewUser(Boolean isNewUser) {
+        this.isNewUser = isNewUser;
     }
 }

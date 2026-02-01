@@ -34,8 +34,23 @@ public class StubEmailService implements EmailService {
         logger.info("EMAIL TYPE: Password Reset");
         logger.info("TO: {} ({})", toEmail, fullName);
         logger.info("TOKEN: {}", resetToken);
-        logger.info("RESET URL: {}", resetUrl);
+        logger.info("RESET URL (Mobile Deep Link): {}", resetUrl);
         logger.info("=========================================");
+        return true;
+    }
+
+    @Override
+    public boolean sendPasswordResetEmail(String toEmail, String fullName, String resetToken, 
+            String mobileResetUrl, String webResetUrl) {
+        logger.info("========== STUB EMAIL SERVICE ==========");
+        logger.info("EMAIL TYPE: Password Reset (Mobile + Web)");
+        logger.info("TO: {} ({})", toEmail, fullName);
+        logger.info("TOKEN: {}", resetToken);
+        logger.info("MOBILE DEEP LINK: {}", mobileResetUrl);
+        logger.info("WEB FALLBACK URL: {}", webResetUrl);
+        logger.info("=========================================");
+        logger.info(">>> Use this URL on mobile: {}", mobileResetUrl);
+        logger.info(">>> Or copy token manually: {}", resetToken);
         return true;
     }
 

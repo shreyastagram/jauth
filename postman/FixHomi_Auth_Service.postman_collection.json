@@ -1285,6 +1285,242 @@
         }
       ],
       "description": "Admin-only user management endpoints. Requires ADMIN or IT_ADMIN role."
+    },
+    {
+      "name": "Session Management",
+      "item": [
+        {
+          "name": "Get Active Sessions",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ACCESS_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}"
+              },
+              {
+                "key": "X-Device-Id",
+                "value": "{{DEVICE_ID}}",
+                "description": "Optional: Current device ID to mark current session"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/auth/sessions",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "auth", "sessions"]
+            },
+            "description": "Get all active sessions for the authenticated user.\n\n**Response:** List of sessions with device info, last activity, trust status."
+          },
+          "response": []
+        },
+        {
+          "name": "Revoke Session",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ACCESS_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/auth/sessions/{{SESSION_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "auth", "sessions", "{{SESSION_ID}}"]
+            },
+            "description": "Revoke a specific session. The session becomes invalid and the device is logged out."
+          },
+          "response": []
+        },
+        {
+          "name": "Revoke All Other Sessions",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ACCESS_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"exceptDeviceId\": \"{{DEVICE_ID}}\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/auth/sessions/revoke-all",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "auth", "sessions", "revoke-all"]
+            },
+            "description": "Revoke all sessions except the current device. Useful for 'Sign out from all devices' feature."
+          },
+          "response": []
+        },
+        {
+          "name": "Validate Token",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ACCESS_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/auth/validate",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "auth", "validate"]
+            },
+            "description": "Validate the current access token. Returns user info if valid."
+          },
+          "response": []
+        }
+      ],
+      "description": "Session management endpoints for multi-device tracking."
+    },
+    {
+      "name": "Device Trust",
+      "item": [
+        {
+          "name": "Trust Device",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ACCESS_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deviceId\": \"{{DEVICE_ID}}\",\n  \"deviceName\": \"iPhone 15 Pro\",\n  \"deviceModel\": \"iPhone15,3\",\n  \"platform\": \"ios\",\n  \"systemVersion\": \"17.0\",\n  \"appVersion\": \"1.0.0\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/auth/devices/trust",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "auth", "devices", "trust"]
+            },
+            "description": "Mark the current device as trusted. Trusted devices get additional security benefits."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Trusted Devices",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ACCESS_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/auth/devices/trust",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "auth", "devices", "trust"]
+            },
+            "description": "Get all trusted devices for the authenticated user."
+          },
+          "response": []
+        },
+        {
+          "name": "Untrust Device",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ACCESS_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{ACCESS_TOKEN}}"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/auth/devices/trust/{{DEVICE_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "auth", "devices", "trust", "{{DEVICE_ID}}"]
+            },
+            "description": "Remove trust from a specific device."
+          },
+          "response": []
+        }
+      ],
+      "description": "Device trust management endpoints."
     }
   ]
 }

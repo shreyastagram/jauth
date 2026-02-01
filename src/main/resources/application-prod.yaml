@@ -113,11 +113,12 @@ fixhomi:
     email:
       expiration-hours: 24
       rate-limit-minutes: 5
-      base-url: ${FIXHOMI_BASE_URL:https://api.fixhomi.com}
+      # Use Render deployment URL for email verification links
+      base-url: ${FIXHOMI_BASE_URL:https://jauth.onrender.com}
     password-reset:
       expiration-hours: 1
       rate-limit-minutes: 5
-      base-url: ${FIXHOMI_FRONTEND_URL:https://app.fixhomi.com}
+      base-url: ${FIXHOMI_FRONTEND_URL:https://jauth.onrender.com}
   
   notification:
     email:

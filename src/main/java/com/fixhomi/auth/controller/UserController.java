@@ -1,6 +1,7 @@
 package com.fixhomi.auth.controller;
 
 import com.fixhomi.auth.dto.ChangePasswordRequest;
+import com.fixhomi.auth.dto.DeleteAccountRequest;
 import com.fixhomi.auth.dto.MessageResponse;
 import com.fixhomi.auth.dto.UpdateProfileRequest;
 import com.fixhomi.auth.dto.UserProfileResponse;
@@ -60,6 +61,59 @@ public class UserController {
     public ResponseEntity<MessageResponse> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
         String email = getCurrentUserEmail();
         MessageResponse response = userService.changePassword(email, request);
+        return ResponseEntity.ok(response);
+    }
+
+    // ==================== ACCOUNT DELETION ====================
+
+    /**
+     * Request OTP for account deletion.
+     * POST /api/users/delete-account/request-otp
+     *
+     * Sends OTP to user's verified phone number for account deletion confirmation.
+     * Requires: Valid JWT token and verified phone number.
+     *
+     * @return success message with masked phone number
+     */
+    @PostMapping("/delete-account/request-otp")
+    public ResponseEntity<MessageResponse> requestDeleteAccountOtp() {
+        String email = getCurrentUserEmail();
+        String maskedPhone = userService.requestDeleteAccountOtp(email);
+        return ResponseEntity.ok(new MessageResponse(
+            "OTP sent to " + maskedPhone + ". Enter the code to confirm account deletion."
+        ));
+    }
+
+    /**
+     * Delete account with OTP verification.
+     * DELETE /api/users/account
+     *
+     * Verifies OTP and permanently deletes the user account.
+     * This is a destructive operation - account cannot be recovered.
+     *
+     * @param request delete account request with OTP
+     * @return success message
+     */
+    @DeleteMapping("/account")
+    public ResponseEntity<MessageResponse> deleteAccount(@Valid @RequestBody DeleteAccountRequest request) {
+        String email = getCurrentUserEmail();
+        MessageResponse response = userService.deleteAccountWithOtp(email, request);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Delete user account by ID (for internal service-to-service calls).
+     * DELETE /api/users/{userId}
+     *
+     * This endpoint is used by Node.js backend to delete user from Java Auth.
+     * INTERNAL USE ONLY - should be protected by service-to-service auth in production.
+     *
+     * @param userId the user ID to delete
+     * @return success message
+     */
+    @DeleteMapping("/{userId}")
+    public ResponseEntity<MessageResponse> deleteAccountById(@PathVariable Long userId) {
+        MessageResponse response = userService.deleteAccountById(userId);
         return ResponseEntity.ok(response);
     }
 

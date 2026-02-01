@@ -133,9 +133,46 @@ public class GoogleAuthService {
 
         logger.debug("Google token verified for email: {}", email);
 
-        // Find or create user
-        User user = userRepository.findByEmail(email)
-                .orElseGet(() -> createGoogleUser(email, name, pictureUrl));
+        // Determine requested role for new users
+        Role requestedRole = Role.USER; // Default
+        if (request.getRole() != null && !request.getRole().isBlank()) {
+            try {
+                requestedRole = Role.valueOf(request.getRole());
+                // Only allow USER and SERVICE_PROVIDER for self-registration
+                if (requestedRole != Role.USER && requestedRole != Role.SERVICE_PROVIDER) {
+                    logger.warn("Invalid role requested via Google OAuth: {}, defaulting to USER", request.getRole());
+                    requestedRole = Role.USER;
+                }
+            } catch (IllegalArgumentException e) {
+                logger.warn("Invalid role string: {}, defaulting to USER", request.getRole());
+                requestedRole = Role.USER;
+            }
+        }
+
+        // Find existing user or create new one
+        final Role finalRole = requestedRole;
+        User user = userRepository.findByEmail(email).orElse(null);
+        
+        boolean isNewUser = false;
+        
+        if (user != null) {
+            // SECURITY CHECK: Verify user role matches the requested role
+            // This prevents a USER from accessing Provider screens and vice versa
+            if (user.getRole() != finalRole) {
+                String existingRoleDisplay = user.getRole() == Role.SERVICE_PROVIDER ? "Service Provider" : "User";
+                String requestedRoleDisplay = finalRole == Role.SERVICE_PROVIDER ? "Service Provider" : "User";
+                logger.warn("Role mismatch for Google OAuth: {} is a {} but tried to login as {}", 
+                    email, existingRoleDisplay, requestedRoleDisplay);
+                throw new AuthenticationException(
+                    "ROLE_CONFLICT: This email is already registered as a " + existingRoleDisplay + 
+                    ". Please login from the correct app screen."
+                );
+            }
+        } else {
+            // Create new user with the requested role
+            user = createGoogleUser(email, name, pictureUrl, finalRole);
+            isNewUser = true;
+        }
 
         // Check if user is active
         if (!user.getIsActive()) {
@@ -157,7 +194,8 @@ public class GoogleAuthService {
         // Generate refresh token
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
 
-        logger.info("Mobile Google login successful for user: {} (role: {})", user.getEmail(), user.getRole());
+        logger.info("Mobile Google login successful for user: {} (role: {}, isNewUser: {})", 
+                user.getEmail(), user.getRole(), isNewUser);
 
         return new LoginResponse(
                 accessToken,
@@ -166,21 +204,26 @@ public class GoogleAuthService {
                 user.getEmail(),
                 user.getFullName(),
                 user.getRole(),
-                jwtService.getExpirationTimeInSeconds()
+                jwtService.getExpirationTimeInSeconds(),
+                isNewUser
         );
     }
 
     /**
      * Create a new user from Google Sign-In data.
+     * @param email User's email from Google
+     * @param name User's name from Google
+     * @param pictureUrl User's profile picture URL
+     * @param role Role for the new user (USER or SERVICE_PROVIDER)
      */
-    private User createGoogleUser(String email, String name, String pictureUrl) {
-        logger.info("Auto-registering new Google user from mobile: {}", email);
+    private User createGoogleUser(String email, String name, String pictureUrl, Role role) {
+        logger.info("Auto-registering new Google user from mobile: {} with role: {}", email, role);
 
         User user = new User();
         user.setEmail(email);
         user.setFullName(name != null ? name : email.split("@")[0]);
         user.setPasswordHash(null); // OAuth users don't have password
-        user.setRole(Role.USER);
+        user.setRole(role);
         user.setIsActive(true);
         user.setIsEmailVerified(true); // Google has verified the email
         user.setIsPhoneVerified(false);

@@ -4,12 +4,16 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 /**
- * Request DTO for changing password.
+ * Request DTO for changing or setting password.
  * Used by POST /api/users/change-password endpoint.
+ * 
+ * For OAuth users setting their first password, currentPassword can be empty.
+ * For existing password users, currentPassword is required.
  */
 public class ChangePasswordRequest {
 
-    @NotBlank(message = "Current password is required")
+    // Note: @NotBlank removed to allow OAuth users to set password without currentPassword
+    // Validation is done in UserService based on whether user has existing password
     private String currentPassword;
 
     @NotBlank(message = "New password is required")

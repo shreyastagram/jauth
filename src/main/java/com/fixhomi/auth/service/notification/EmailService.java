@@ -23,10 +23,27 @@ public interface EmailService {
      * @param toEmail recipient email address
      * @param fullName recipient's full name
      * @param resetToken the reset token
-     * @param resetUrl the full reset URL
+     * @param resetUrl the full reset URL (mobile deep link)
      * @return true if email was sent successfully
      */
     boolean sendPasswordResetEmail(String toEmail, String fullName, String resetToken, String resetUrl);
+
+    /**
+     * Send password reset link to user with web fallback.
+     * Includes both mobile deep link and web URL for compatibility.
+     *
+     * @param toEmail recipient email address
+     * @param fullName recipient's full name
+     * @param resetToken the reset token
+     * @param mobileResetUrl the mobile deep link URL
+     * @param webResetUrl the web fallback URL
+     * @return true if email was sent successfully
+     */
+    default boolean sendPasswordResetEmail(String toEmail, String fullName, String resetToken, 
+            String mobileResetUrl, String webResetUrl) {
+        // Default implementation uses mobile URL - implementations can override for better email templates
+        return sendPasswordResetEmail(toEmail, fullName, resetToken, mobileResetUrl);
+    }
 
     /**
      * Send welcome email after successful registration.

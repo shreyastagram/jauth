@@ -22,6 +22,7 @@ public class UserProfileResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private LocalDateTime lastLoginAt;
+    private Boolean hasPassword;  // Indicates if user has set a password (false for OAuth-only users)
 
     // Constructors
     public UserProfileResponse() {
@@ -33,7 +34,8 @@ public class UserProfileResponse {
     public UserProfileResponse(Long userId, String email, String phoneNumber, String fullName, 
                                Role role, Boolean isActive, Boolean isEmailVerified, 
                                Boolean isPhoneVerified, LocalDateTime createdAt, 
-                               LocalDateTime updatedAt, LocalDateTime lastLoginAt) {
+                               LocalDateTime updatedAt, LocalDateTime lastLoginAt,
+                               Boolean hasPassword) {
         this.userId = userId;
         this.email = email;
         this.phoneNumber = phoneNumber;
@@ -45,6 +47,7 @@ public class UserProfileResponse {
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
         this.lastLoginAt = lastLoginAt;
+        this.hasPassword = hasPassword;
     }
 
     // Getters and Setters
@@ -134,5 +137,13 @@ public class UserProfileResponse {
 
     public void setLastLoginAt(LocalDateTime lastLoginAt) {
         this.lastLoginAt = lastLoginAt;
+    }
+
+    public Boolean getHasPassword() {
+        return hasPassword;
+    }
+
+    public void setHasPassword(Boolean hasPassword) {
+        this.hasPassword = hasPassword;
     }
 }

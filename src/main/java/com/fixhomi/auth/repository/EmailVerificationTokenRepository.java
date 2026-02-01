@@ -17,6 +17,11 @@ import java.util.Optional;
 public interface EmailVerificationTokenRepository extends JpaRepository<EmailVerificationToken, Long> {
 
     /**
+     * Find token by token string (regardless of verified status).
+     */
+    Optional<EmailVerificationToken> findByToken(String token);
+
+    /**
      * Find a valid (non-expired, non-verified) token.
      */
     Optional<EmailVerificationToken> findByTokenAndVerifiedFalse(String token);
