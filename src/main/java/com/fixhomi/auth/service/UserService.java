@@ -132,6 +132,11 @@ public class UserService {
 
         // Update phone number if provided
         if (request.getPhoneNumber() != null) {
+            // Check if phone number is actually changing
+            String currentPhone = user.getPhoneNumber();
+            boolean phoneIsChanging = !request.getPhoneNumber().isBlank() 
+                    && (currentPhone == null || !currentPhone.equals(request.getPhoneNumber().trim()));
+
             // Check if phone number is already used by another user
             if (!request.getPhoneNumber().isBlank()) {
                 boolean phoneExists = userRepository.existsByPhoneNumber(request.getPhoneNumber());
@@ -142,6 +147,13 @@ public class UserService {
             } else {
                 user.setPhoneNumber(null); // Allow clearing phone number
             }
+
+            // Reset phone verification when number changes
+            if (phoneIsChanging) {
+                user.setIsPhoneVerified(false);
+                logger.info("Phone number changed for user: {} — phone verification reset", email);
+            }
+
             logger.debug("Updating phoneNumber for user: {}", email);
         }
 

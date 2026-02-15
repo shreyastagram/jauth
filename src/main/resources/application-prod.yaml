@@ -20,13 +20,16 @@ spring:
     password: ${DATABASE_PASSWORD}
     driver-class-name: org.postgresql.Driver
     
-    # Connection pool settings (HikariCP)
+    # Connection pool settings (HikariCP) — tuned for Neon serverless PostgreSQL
     hikari:
       maximum-pool-size: 5        # Neon free tier has connection limits
       minimum-idle: 1
       idle-timeout: 30000         # 30 seconds
       connection-timeout: 20000   # 20 seconds
-      max-lifetime: 1800000       # 30 minutes
+      max-lifetime: 240000        # 4 minutes (Neon kills idle connections at ~5 min)
+      keepalive-time: 60000       # Ping every 60s to keep connections alive
+      validation-timeout: 5000    # 5 second validation timeout
+      leak-detection-threshold: 30000  # Warn if connection held > 30s
   
   # Disable H2 Console in production
   h2:
