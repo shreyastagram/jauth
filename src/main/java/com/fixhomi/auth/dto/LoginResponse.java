@@ -17,6 +17,8 @@ public class LoginResponse {
     private Role role;
     private Long expiresIn; // seconds
     private Boolean isNewUser; // For Google OAuth - indicates if this is a new registration
+    private String phoneNumber; // Phone number for cross-service sync
+    private Boolean isPhoneVerified; // Phone verification status for cross-service sync
 
     // Constructors
     public LoginResponse() {
@@ -31,6 +33,21 @@ public class LoginResponse {
         this.role = role;
         this.expiresIn = expiresIn;
         this.isNewUser = false;
+        this.phoneNumber = null;
+        this.isPhoneVerified = false;
+    }
+
+    public LoginResponse(String accessToken, String refreshToken, Long userId, String email, String fullName, Role role, Long expiresIn, String phoneNumber, Boolean isPhoneVerified) {
+        this.accessToken = accessToken;
+        this.refreshToken = refreshToken;
+        this.userId = userId;
+        this.email = email;
+        this.fullName = fullName;
+        this.role = role;
+        this.expiresIn = expiresIn;
+        this.isNewUser = false;
+        this.phoneNumber = phoneNumber;
+        this.isPhoneVerified = isPhoneVerified;
     }
 
     public LoginResponse(String accessToken, String refreshToken, Long userId, String email, String fullName, Role role, Long expiresIn, Boolean isNewUser) {
@@ -115,5 +132,21 @@ public class LoginResponse {
 
     public void setIsNewUser(Boolean isNewUser) {
         this.isNewUser = isNewUser;
+    }
+
+    public String getPhoneNumber() {
+        return phoneNumber;
+    }
+
+    public void setPhoneNumber(String phoneNumber) {
+        this.phoneNumber = phoneNumber;
+    }
+
+    public Boolean getIsPhoneVerified() {
+        return isPhoneVerified;
+    }
+
+    public void setIsPhoneVerified(Boolean isPhoneVerified) {
+        this.isPhoneVerified = isPhoneVerified;
     }
 }

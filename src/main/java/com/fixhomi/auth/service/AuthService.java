@@ -88,7 +88,9 @@ public class AuthService {
                 user.getEmail(),
                 user.getFullName(),
                 user.getRole(),
-                jwtService.getExpirationTimeInSeconds()
+                jwtService.getExpirationTimeInSeconds(),
+                user.getPhoneNumber(),
+                user.getIsPhoneVerified()
         );
     }
 
@@ -156,7 +158,9 @@ public class AuthService {
                 user.getEmail(),
                 user.getFullName(),
                 user.getRole(),
-                jwtService.getExpirationTimeInSeconds()
+                jwtService.getExpirationTimeInSeconds(),
+                user.getPhoneNumber(),
+                user.getIsPhoneVerified()
         );
     }
 
@@ -208,7 +212,9 @@ public class AuthService {
                 user.getEmail(),
                 user.getFullName(),
                 user.getRole(),
-                jwtService.getExpirationTimeInSeconds()
+                jwtService.getExpirationTimeInSeconds(),
+                user.getPhoneNumber(),
+                user.getIsPhoneVerified()
         );
     }
 
