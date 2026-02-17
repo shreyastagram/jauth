@@ -105,6 +105,21 @@ public class TwilioSmsService implements SmsService {
         logger.info("📱 Starting Twilio Verify for: {} (normalized from: {})", 
             maskPhoneNumber(normalizedPhone), maskPhoneNumber(phoneNumber));
         
+        // TRIAL MODE WORKAROUND: Redirect OTP to the verified phone number
+        // Twilio trial accounts can only send to verified numbers.
+        // We send the OTP to the verified phone but track it against the original number.
+        String deliveryPhone = normalizedPhone;
+        if (trialMode && verifiedPhone != null && !verifiedPhone.isBlank()) {
+            deliveryPhone = normalizeToE164(verifiedPhone);
+            logger.info("╔════════════════════════════════════════════════════════════╗");
+            logger.info("║  ⚠️  TRIAL MODE: REDIRECTING OTP TO VERIFIED PHONE         ║");
+            logger.info("╠════════════════════════════════════════════════════════════╣");
+            logger.info("║ Requested by: {}                            ║", padRight(maskPhoneNumber(normalizedPhone), 18));
+            logger.info("║ Sending to:   {}                            ║", padRight(maskPhoneNumber(deliveryPhone), 18));
+            logger.info("║ Check the verified phone for the OTP code!                ║");
+            logger.info("╚════════════════════════════════════════════════════════════╝");
+        }
+        
         try {
             validateConfig();
             
@@ -113,8 +128,8 @@ public class TwilioSmsService implements SmsService {
             HttpHeaders headers = createAuthHeaders();
             headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
             
-            // Channel=sms for SMS OTP - use normalized phone number
-            String body = String.format("To=%s&Channel=sms", encodeUrlParam(normalizedPhone));
+            // Send OTP to deliveryPhone (verified phone in trial mode, actual phone in production)
+            String body = String.format("To=%s&Channel=sms", encodeUrlParam(deliveryPhone));
             
             HttpEntity<String> request = new HttpEntity<>(body, headers);
             ResponseEntity<String> response = restTemplate.postForEntity(url, request, String.class);
@@ -194,6 +209,15 @@ public class TwilioSmsService implements SmsService {
             return checkFallbackOtp(normalizedPhone, code);
         }
         
+        // TRIAL MODE WORKAROUND: Verify against the verified phone 
+        // since that's where the OTP was actually sent
+        String verifyPhone = normalizedPhone;
+        if (trialMode && verifiedPhone != null && !verifiedPhone.isBlank()) {
+            verifyPhone = normalizeToE164(verifiedPhone);
+            logger.info("⚠️ TRIAL MODE: Verifying OTP against verified phone {} (original: {})", 
+                maskPhoneNumber(verifyPhone), maskPhoneNumber(normalizedPhone));
+        }
+        
         try {
             validateConfig();
             
@@ -209,8 +233,8 @@ public class TwilioSmsService implements SmsService {
             HttpHeaders headers = createAuthHeaders();
             headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
             
-            // Use normalized phone number for verification check
-            String body = String.format("To=%s&Code=%s", encodeUrlParam(normalizedPhone), encodeUrlParam(code));
+            // Use verifyPhone (verified phone in trial mode) for verification check
+            String body = String.format("To=%s&Code=%s", encodeUrlParam(verifyPhone), encodeUrlParam(code));
             
             HttpEntity<String> request = new HttpEntity<>(body, headers);
             ResponseEntity<String> response = restTemplate.postForEntity(url, request, String.class);
