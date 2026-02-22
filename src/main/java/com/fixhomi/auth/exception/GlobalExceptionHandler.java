@@ -54,6 +54,8 @@ public class GlobalExceptionHandler {
 
     /**
      * Handle duplicate resource exceptions.
+     * Includes the conflicting field name in the response so clients
+     * can show field-specific error messages (e.g., "email" vs "phoneNumber").
      */
     @ExceptionHandler(DuplicateResourceException.class)
     public ResponseEntity<ErrorResponse> handleDuplicateResourceException(
@@ -66,6 +68,12 @@ public class GlobalExceptionHandler {
                 ex.getMessage(),
                 request.getRequestURI()
         );
+        
+        // Add the conflicting field so Node.js backend can differentiate
+        // between email and phone number conflicts
+        if (ex.getField() != null) {
+            error.addValidationError("conflictField", ex.getField());
+        }
         
         return new ResponseEntity<>(error, HttpStatus.CONFLICT);
     }
