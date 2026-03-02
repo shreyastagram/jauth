@@ -40,7 +40,7 @@ public class EmailVerificationService {
     @Value("${fixhomi.verification.email.expiration-hours:24}")
     private int tokenExpirationHours;
 
-    @Value("${fixhomi.verification.email.rate-limit-minutes:5}")
+    @Value("${fixhomi.verification.email.rate-limit-minutes:2}")
     private int rateLimitMinutes;
 
     @Value("${fixhomi.verification.email.base-url:http://localhost:8080}")
@@ -61,11 +61,23 @@ public class EmailVerificationService {
             throw new VerificationException("Email is already verified");
         }
 
-        // Rate limiting
+        // Rate limiting — prevent spam while giving clear feedback
         LocalDateTime since = LocalDateTime.now().minusMinutes(rateLimitMinutes);
         long recentRequests = tokenRepository.countRecentTokenRequests(user.getId(), since);
         if (recentRequests >= 1) {
-            throw new TooManyRequestsException("Please wait before requesting another verification email.");
+            // Find the most recent token in the rate-limit window (regardless of verified status)
+            // Previous calls may have invalidated tokens (set verified=true), so we can't filter by verified=false
+            var latestToken = tokenRepository.findMostRecentTokenSince(user.getId(), since);
+            long remainingSeconds = rateLimitMinutes * 60; // fallback
+            if (latestToken.isPresent()) {
+                LocalDateTime sentAt = latestToken.get().getCreatedAt();
+                LocalDateTime canRetryAt = sentAt.plusMinutes(rateLimitMinutes);
+                remainingSeconds = java.time.Duration.between(LocalDateTime.now(), canRetryAt).getSeconds();
+                if (remainingSeconds < 0) remainingSeconds = 0;
+            }
+            throw new TooManyRequestsException(
+                    "Please wait " + remainingSeconds + " seconds before requesting another verification email. " +
+                    "Check your inbox (and spam folder) for the verification link we already sent.");
         }
 
         // Invalidate any existing tokens

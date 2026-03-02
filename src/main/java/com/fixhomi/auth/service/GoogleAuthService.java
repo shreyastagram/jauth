@@ -85,6 +85,9 @@ public class GoogleAuthService {
             .build();
 
         logger.info("Google ID token verifier initialized with {} client ID(s)", clientIds.size());
+        clientIds.forEach(id -> logger.info("  Accepted audience: {}...{}", 
+            id.substring(0, Math.min(12, id.length())), 
+            id.substring(Math.max(0, id.length() - 20))));
     }
 
     /**

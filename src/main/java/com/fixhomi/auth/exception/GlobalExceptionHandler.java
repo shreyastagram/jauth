@@ -152,6 +152,7 @@ public class GlobalExceptionHandler {
 
     /**
      * Handle too many requests (rate limit) exceptions.
+     * Parses remaining seconds from the message if available (format: "Please wait N seconds...")
      */
     @ExceptionHandler(TooManyRequestsException.class)
     public ResponseEntity<ErrorResponse> handleTooManyRequestsException(
@@ -164,6 +165,16 @@ public class GlobalExceptionHandler {
                 ex.getMessage(),
                 request.getRequestURI()
         );
+
+        // Extract remaining seconds from message for structured response
+        // Expected format: "Please wait N seconds before..."
+        String msg = ex.getMessage();
+        if (msg != null) {
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("wait (\\d+) seconds").matcher(msg);
+            if (m.find()) {
+                error.addValidationError("retryAfterSeconds", m.group(1));
+            }
+        }
         
         return new ResponseEntity<>(error, HttpStatus.TOO_MANY_REQUESTS);
     }

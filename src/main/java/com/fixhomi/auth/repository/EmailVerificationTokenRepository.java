@@ -36,6 +36,16 @@ public interface EmailVerificationTokenRepository extends JpaRepository<EmailVer
             @Param("now") LocalDateTime now);
 
     /**
+     * Find the most recent token for a user within a time window (regardless of verified status).
+     * Used for rate limit timing — tokens may already be invalidated (verified=true) by a previous call.
+     */
+    @Query("SELECT e FROM EmailVerificationToken e WHERE e.userId = :userId " +
+           "AND e.createdAt > :since ORDER BY e.createdAt DESC LIMIT 1")
+    Optional<EmailVerificationToken> findMostRecentTokenSince(
+            @Param("userId") Long userId,
+            @Param("since") LocalDateTime since);
+
+    /**
      * Invalidate all existing tokens for a user.
      */
     @Modifying
