@@ -24,6 +24,15 @@ public class GoogleMobileAuthRequest {
     @Pattern(regexp = "^(USER|SERVICE_PROVIDER)?$", message = "Role must be USER or SERVICE_PROVIDER")
     private String role;
 
+    /**
+     * Auth mode: "login" or "signup".
+     * - "login": Only authenticate existing users. Returns error if user not found.
+     * - "signup": Only register new users. Returns error if user already exists.
+     * - null/empty: Legacy behavior (auto-register or login).
+     */
+    @Pattern(regexp = "^(login|signup)?$", message = "Mode must be 'login' or 'signup'")
+    private String mode;
+
     // Optional: device info for analytics/security
     private String deviceId;
     private String deviceType; // "ios" or "android"
@@ -76,5 +85,13 @@ public class GoogleMobileAuthRequest {
 
     public void setRole(String role) {
         this.role = role;
+    }
+
+    public String getMode() {
+        return mode;
+    }
+
+    public void setMode(String mode) {
+        this.mode = mode;
     }
 }

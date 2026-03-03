@@ -24,12 +24,35 @@ public class GlobalExceptionHandler {
             AuthenticationException ex,
             HttpServletRequest request) {
         
+        String rawMessage = ex.getMessage();
+        String code = "AUTH_FAILED";
+        String existingRole = null;
+        String userMessage = rawMessage;
+        
+        // Parse structured error codes: "CODE:ROLE:message"
+        if (rawMessage != null && rawMessage.contains(":")) {
+            String[] parts = rawMessage.split(":", 3);
+            if (parts.length == 3 && (parts[0].equals("ROLE_CONFLICT") 
+                || parts[0].equals("NOT_REGISTERED") 
+                || parts[0].equals("ALREADY_REGISTERED"))) {
+                code = parts[0];
+                existingRole = parts[1];
+                userMessage = parts[2];
+            }
+        }
+        
         ErrorResponse error = new ErrorResponse(
                 HttpStatus.UNAUTHORIZED.value(),
                 "Authentication Failed",
-                ex.getMessage(),
+                userMessage,
                 request.getRequestURI()
         );
+        
+        // Add structured code and role info
+        error.addValidationError("code", code);
+        if (existingRole != null) {
+            error.addValidationError("existingRole", existingRole);
+        }
         
         return new ResponseEntity<>(error, HttpStatus.UNAUTHORIZED);
     }

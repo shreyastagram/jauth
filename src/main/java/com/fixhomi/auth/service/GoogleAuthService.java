@@ -152,6 +152,11 @@ public class GoogleAuthService {
             }
         }
 
+        // Determine auth mode: "login", "signup", or null (legacy)
+        String mode = request.getMode();
+        boolean isLoginMode = "login".equalsIgnoreCase(mode);
+        boolean isSignupMode = "signup".equalsIgnoreCase(mode);
+
         // Find existing user or create new one
         final Role finalRole = requestedRole;
         User user = userRepository.findByEmail(email).orElse(null);
@@ -159,19 +164,43 @@ public class GoogleAuthService {
         boolean isNewUser = false;
         
         if (user != null) {
-            // SECURITY CHECK: Verify user role matches the requested role
-            // This prevents a USER from accessing Provider screens and vice versa
+            // ── User EXISTS ──
+            
+            // CROSS-ROLE DETECTION: user exists but with a different role
             if (user.getRole() != finalRole) {
                 String existingRoleDisplay = user.getRole() == Role.SERVICE_PROVIDER ? "Service Provider" : "User";
                 String requestedRoleDisplay = finalRole == Role.SERVICE_PROVIDER ? "Service Provider" : "User";
-                logger.warn("Role mismatch for Google OAuth: {} is a {} but tried to login as {}", 
+                logger.warn("Role mismatch for Google OAuth: {} is a {} but tried to auth as {}", 
                     email, existingRoleDisplay, requestedRoleDisplay);
                 throw new AuthenticationException(
-                    "ROLE_CONFLICT: This email is already registered as a " + existingRoleDisplay + 
-                    ". Please login from the correct app screen."
+                    "ROLE_CONFLICT:" + user.getRole().name() + ":" +
+                    "This email is already registered as a " + existingRoleDisplay + 
+                    ". Please login from the " + existingRoleDisplay + " screen."
+                );
+            }
+            
+            // SIGNUP MODE: user already exists with same role → tell them to login
+            if (isSignupMode) {
+                String roleDisplay = user.getRole() == Role.SERVICE_PROVIDER ? "Service Provider" : "User";
+                logger.info("Signup attempt for existing Google user: {} (role: {})", email, roleDisplay);
+                throw new AuthenticationException(
+                    "ALREADY_REGISTERED:" + user.getRole().name() + ":" +
+                    "This email is already registered as a " + roleDisplay + 
+                    ". Please login instead."
                 );
             }
         } else {
+            // ── User does NOT exist ──
+            
+            // LOGIN MODE: user not found → tell them to register first
+            if (isLoginMode) {
+                logger.info("Login attempt for non-existent Google user: {} (requested role: {})", email, finalRole);
+                throw new AuthenticationException(
+                    "NOT_REGISTERED:" + finalRole.name() + ":" +
+                    "No account found with this email. Please register first."
+                );
+            }
+            
             // Create new user with the requested role
             user = createGoogleUser(email, name, pictureUrl, finalRole);
             isNewUser = true;
