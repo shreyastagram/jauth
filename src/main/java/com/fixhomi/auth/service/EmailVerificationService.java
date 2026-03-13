@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -141,9 +142,10 @@ public class EmailVerificationService {
             throw new VerificationException("Verification token has expired. Please request a new one.");
         }
 
-        // Mark token as verified
+        // Mark token as verified and delete to prevent reuse
         verificationToken.setVerified(true);
         tokenRepository.save(verificationToken);
+        tokenRepository.delete(verificationToken);
 
         // Mark user's email as verified
         User user = userRepository.findById(verificationToken.getUserId())
@@ -169,6 +171,18 @@ public class EmailVerificationService {
     /**
      * Mask email for logging/response.
      */
+    /**
+     * Cleanup expired email verification tokens every hour.
+     */
+    @Scheduled(fixedRate = 3600000) // 1 hour
+    @Transactional
+    public void cleanupExpiredTokens() {
+        int deleted = tokenRepository.deleteExpiredTokens(LocalDateTime.now());
+        if (deleted > 0) {
+            logger.info("Cleaned up {} expired email verification tokens", deleted);
+        }
+    }
+
     private String maskEmail(String email) {
         if (email == null || !email.contains("@")) {
             return "****";

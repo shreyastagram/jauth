@@ -4,7 +4,6 @@ import com.fixhomi.auth.dto.LoginResponse;
 import com.fixhomi.auth.entity.RefreshToken;
 import com.fixhomi.auth.entity.User;
 import com.fixhomi.auth.exception.AuthenticationException;
-import com.fixhomi.auth.exception.ResourceNotFoundException;
 import com.fixhomi.auth.exception.TooManyRequestsException;
 import com.fixhomi.auth.exception.VerificationException;
 import com.fixhomi.auth.repository.UserRepository;
@@ -15,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,10 +22,12 @@ import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Service for OTP-based passwordless login.
  * Supports both phone number OTP login and email OTP login.
+ * OTP generation and verification is handled locally.
  */
 @Service
 public class OtpLoginService {
@@ -33,12 +35,11 @@ public class OtpLoginService {
     private static final Logger logger = LoggerFactory.getLogger(OtpLoginService.class);
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
-    // In-memory store for email OTPs (for production, use Redis or database)
+    // In-memory store for email OTPs
     private final Map<String, EmailOtpEntry> emailOtpStore = new ConcurrentHashMap<>();
-    
-    // In-memory store for pending phone logins (maps phone -> userId)
-    // Needed because Twilio Verify handles OTP storage, we just track who requested it
-    private static final ConcurrentHashMap<String, Long> pendingPhoneLogins = new ConcurrentHashMap<>();
+
+    // In-memory store for phone OTPs (local generation + verification)
+    private final Map<String, PhoneOtpEntry> phoneOtpStore = new ConcurrentHashMap<>();
 
     @Autowired
     private UserRepository userRepository;
@@ -55,8 +56,6 @@ public class OtpLoginService {
     @Autowired
     private RefreshTokenService refreshTokenService;
 
-    // Phone OTP configuration is managed by Twilio Verify API
-    // These settings are only used for Email OTP (handled locally)
     @Value("${fixhomi.verification.otp.expiration-minutes:5}")
     private int otpExpirationMinutes;
 
@@ -72,75 +71,87 @@ public class OtpLoginService {
     @Value("${fixhomi.verification.otp.rate-limit-max-requests:3}")
     private int rateLimitMaxRequests;
 
-    // ==================== PHONE OTP LOGIN (Twilio Verify) ====================
+    // ==================== PHONE OTP LOGIN ====================
 
     /**
-     * Send OTP for phone-based login via Twilio Verify API.
-     * Twilio handles OTP generation, delivery, expiry, and rate limiting.
-     * 
-     * @param phoneNumber user's phone number
-     * @return masked phone number
+     * Send OTP for phone-based login.
+     * OTP is generated locally and sent via SMS provider.
      */
     public String sendPhoneLoginOtp(String phoneNumber) {
-        // Find user by phone number
-        User user = userRepository.findByPhoneNumber(phoneNumber)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "phoneNumber", phoneNumber));
-
-        // Check if user is active
-        if (!user.getIsActive()) {
-            throw new AuthenticationException("Account is deactivated. Please contact support.");
+        // Rate limiting
+        PhoneOtpEntry existing = phoneOtpStore.get(phoneNumber);
+        if (existing != null && existing.createdAt.plusMinutes(rateLimitMinutes).isAfter(LocalDateTime.now())) {
+            throw new TooManyRequestsException("Too many OTP requests. Please wait before trying again.");
         }
 
-        // Start verification via Twilio Verify API
-        // Twilio handles rate limiting, OTP generation, and expiry internally
-        boolean sent = smsService.startVerification(phoneNumber);
+        // Find user — return same response whether user exists or not (prevent enumeration)
+        User user = userRepository.findByPhoneNumber(phoneNumber).orElse(null);
+
+        if (user == null || !user.getIsActive()) {
+            logger.warn("Phone OTP requested for non-existent or inactive phone: {}", maskPhoneNumber(phoneNumber));
+            return maskPhoneNumber(phoneNumber);
+        }
+
+        // Generate OTP locally
+        String otp = generateOtp();
+        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(otpExpirationMinutes);
+
+        // Store OTP locally for verification
+        phoneOtpStore.put(phoneNumber, new PhoneOtpEntry(otp, expiresAt, user.getId()));
+
+        // Send OTP via SMS provider
+        boolean sent = smsService.sendOtp(phoneNumber, otp);
         if (!sent) {
-            logger.warn("Failed to start login OTP verification for phone: {}", maskPhoneNumber(phoneNumber));
+            phoneOtpStore.remove(phoneNumber);
+            logger.warn("Failed to send login OTP for phone: {}", maskPhoneNumber(phoneNumber));
             throw new VerificationException("Failed to send OTP. Please try again.");
         }
 
-        // Store mapping of phone to user for verification step
-        pendingPhoneLogins.put(phoneNumber, user.getId());
-
-        logger.info("📱 Login OTP sent via Twilio Verify to phone: {}", maskPhoneNumber(phoneNumber));
-
+        logger.info("Login OTP sent to phone: {}", maskPhoneNumber(phoneNumber));
         return maskPhoneNumber(phoneNumber);
     }
 
     /**
-     * Verify OTP and complete phone-based login via Twilio Verify API.
-     * Twilio validates the OTP internally with attempt tracking.
-     * 
-     * @param phoneNumber user's phone number
-     * @param otpCode OTP code to verify
-     * @return LoginResponse with JWT tokens
+     * Verify OTP and complete phone-based login.
+     * OTP is verified locally.
      */
     @Transactional
     public LoginResponse verifyPhoneLoginOtp(String phoneNumber, String otpCode) {
-        // Check if there's a pending login for this phone
-        Long userId = pendingPhoneLogins.get(phoneNumber);
-        if (userId == null) {
+        // Get stored OTP
+        PhoneOtpEntry otpEntry = phoneOtpStore.get(phoneNumber);
+        if (otpEntry == null) {
             throw new VerificationException("No pending login. Please request a new OTP.");
         }
 
+        // Check expiration
+        if (otpEntry.expiresAt.isBefore(LocalDateTime.now())) {
+            phoneOtpStore.remove(phoneNumber);
+            throw new VerificationException("OTP has expired. Please request a new one.");
+        }
+
+        // Increment and check attempts
+        int currentAttempts = otpEntry.attempts.incrementAndGet();
+        if (currentAttempts > maxAttempts) {
+            phoneOtpStore.remove(phoneNumber);
+            throw new VerificationException("Maximum verification attempts exceeded. Please request a new OTP.");
+        }
+
+        // Verify OTP
+        if (!otpEntry.otp.equals(otpCode)) {
+            int remainingAttempts = maxAttempts - currentAttempts;
+            throw new VerificationException("Invalid OTP. " + remainingAttempts + " attempt(s) remaining.");
+        }
+
+        // OTP verified — remove from store
+        phoneOtpStore.remove(phoneNumber);
+
         // Find user
-        User user = userRepository.findById(userId)
+        User user = userRepository.findById(otpEntry.userId)
                 .orElseThrow(() -> new AuthenticationException("Invalid phone number or OTP"));
 
-        // Check if user is active
         if (!user.getIsActive()) {
             throw new AuthenticationException("Account is deactivated. Please contact support.");
         }
-
-        // Verify OTP via Twilio Verify API
-        // Twilio handles attempt counting and expiry internally
-        boolean verified = smsService.checkVerification(phoneNumber, otpCode);
-        if (!verified) {
-            throw new VerificationException("Invalid or expired OTP. Please try again or request a new code.");
-        }
-
-        // OTP verified - remove from pending
-        pendingPhoneLogins.remove(phoneNumber);
 
         // Auto-verify phone if not already verified
         if (!user.getIsPhoneVerified()) {
@@ -159,7 +170,7 @@ public class OtpLoginService {
         );
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
 
-        logger.info("✅ User logged in via phone OTP (Twilio Verify): {} (role: {})", user.getEmail(), user.getRole());
+        logger.info("User logged in via phone OTP: {} (role: {})", user.getEmail(), user.getRole());
 
         return new LoginResponse(
                 accessToken,
@@ -168,7 +179,9 @@ public class OtpLoginService {
                 user.getEmail(),
                 user.getFullName(),
                 user.getRole(),
-                jwtService.getExpirationTimeInSeconds()
+                jwtService.getExpirationTimeInSeconds(),
+                user.getPhoneNumber(),
+                user.getIsPhoneVerified()
         );
     }
 
@@ -176,25 +189,21 @@ public class OtpLoginService {
 
     /**
      * Send OTP for email-based login.
-     * 
-     * @param email user's email
-     * @return masked email
      */
     @Transactional
     public String sendEmailLoginOtp(String email) {
-        // Find user by email
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
-
-        // Check if user is active
-        if (!user.getIsActive()) {
-            throw new AuthenticationException("Account is deactivated. Please contact support.");
-        }
-
-        // Rate limiting (check existing OTPs in store)
+        // Rate limiting first (before user lookup to prevent timing attacks)
         EmailOtpEntry existing = emailOtpStore.get(email.toLowerCase());
         if (existing != null && existing.createdAt.plusMinutes(rateLimitMinutes).isAfter(LocalDateTime.now())) {
             throw new TooManyRequestsException("Too many OTP requests. Please wait before trying again.");
+        }
+
+        // Find user — return same response whether user exists or not (prevent enumeration)
+        User user = userRepository.findByEmail(email).orElse(null);
+
+        if (user == null || !user.getIsActive()) {
+            logger.warn("Email OTP requested for non-existent or inactive email: {}", maskEmail(email));
+            return maskEmail(email);
         }
 
         // Generate new OTP
@@ -211,70 +220,53 @@ public class OtpLoginService {
         }
 
         logger.info("Login OTP sent to email: {}", maskEmail(email));
-
         return maskEmail(email);
     }
 
     /**
      * Verify OTP and complete email-based login.
-     * 
-     * @param email user's email
-     * @param otpCode OTP code to verify
-     * @return LoginResponse with JWT tokens
      */
     @Transactional
     public LoginResponse verifyEmailLoginOtp(String email, String otpCode) {
         String emailLower = email.toLowerCase();
 
-        // Get stored OTP
         EmailOtpEntry otpEntry = emailOtpStore.get(emailLower);
         if (otpEntry == null) {
             throw new VerificationException("No valid OTP found. Please request a new one.");
         }
 
-        // Check expiration
         if (otpEntry.expiresAt.isBefore(LocalDateTime.now())) {
             emailOtpStore.remove(emailLower);
             throw new VerificationException("OTP has expired. Please request a new one.");
         }
 
-        // Check attempts
-        if (otpEntry.attempts >= maxAttempts) {
+        int currentAttempts = otpEntry.attempts.incrementAndGet();
+        if (currentAttempts > maxAttempts) {
             emailOtpStore.remove(emailLower);
             throw new VerificationException("Maximum verification attempts exceeded. Please request a new OTP.");
         }
 
-        // Increment attempts
-        otpEntry.attempts++;
-
-        // Verify OTP
         if (!otpEntry.otp.equals(otpCode)) {
-            int remainingAttempts = maxAttempts - otpEntry.attempts;
+            int remainingAttempts = maxAttempts - currentAttempts;
             throw new VerificationException("Invalid OTP. " + remainingAttempts + " attempt(s) remaining.");
         }
 
-        // Remove used OTP
         emailOtpStore.remove(emailLower);
 
-        // Find user
         User user = userRepository.findById(otpEntry.userId)
                 .orElseThrow(() -> new AuthenticationException("User not found"));
 
-        // Check if user is active
         if (!user.getIsActive()) {
             throw new AuthenticationException("Account is deactivated. Please contact support.");
         }
 
-        // Auto-verify email if not already verified
         if (!user.getIsEmailVerified()) {
             user.setIsEmailVerified(true);
         }
 
-        // Update last login
         user.setLastLoginAt(LocalDateTime.now());
         userRepository.save(user);
 
-        // Generate tokens
         String accessToken = jwtService.generateAccessToken(
                 user.getId(),
                 user.getEmail(),
@@ -291,15 +283,14 @@ public class OtpLoginService {
                 user.getEmail(),
                 user.getFullName(),
                 user.getRole(),
-                jwtService.getExpirationTimeInSeconds()
+                jwtService.getExpirationTimeInSeconds(),
+                user.getPhoneNumber(),
+                user.getIsPhoneVerified()
         );
     }
 
     // ==================== HELPER METHODS ====================
 
-    /**
-     * Generate a random numeric OTP.
-     */
     private String generateOtp() {
         StringBuilder otp = new StringBuilder();
         for (int i = 0; i < otpLength; i++) {
@@ -308,9 +299,6 @@ public class OtpLoginService {
         return otp.toString();
     }
 
-    /**
-     * Mask phone number for logging/response (show last 4 digits).
-     */
     private String maskPhoneNumber(String phoneNumber) {
         if (phoneNumber == null || phoneNumber.length() < 4) {
             return "****";
@@ -318,9 +306,6 @@ public class OtpLoginService {
         return "****" + phoneNumber.substring(phoneNumber.length() - 4);
     }
 
-    /**
-     * Mask email for logging/response.
-     */
     private String maskEmail(String email) {
         if (email == null || !email.contains("@")) {
             return "****";
@@ -333,21 +318,63 @@ public class OtpLoginService {
     }
 
     /**
+     * Cleanup expired OTP entries every 10 minutes.
+     */
+    @Scheduled(fixedRate = 600000)
+    public void cleanupExpiredEntries() {
+        LocalDateTime now = LocalDateTime.now();
+
+        int emailBefore = emailOtpStore.size();
+        emailOtpStore.entrySet().removeIf(e -> e.getValue().expiresAt.isBefore(now));
+        int removedEmail = emailBefore - emailOtpStore.size();
+
+        int phoneBefore = phoneOtpStore.size();
+        phoneOtpStore.entrySet().removeIf(e -> e.getValue().expiresAt.isBefore(now));
+        int removedPhone = phoneBefore - phoneOtpStore.size();
+
+        if (removedEmail > 0) {
+            logger.info("Cleaned up {} expired email OTP entries", removedEmail);
+        }
+        if (removedPhone > 0) {
+            logger.info("Cleaned up {} expired phone OTP entries", removedPhone);
+        }
+    }
+
+    /**
      * Inner class for storing email OTP entries.
      */
     private static class EmailOtpEntry {
-        String otp;
-        LocalDateTime expiresAt;
-        LocalDateTime createdAt;
-        Long userId;
-        int attempts;
+        final String otp;
+        final LocalDateTime expiresAt;
+        final LocalDateTime createdAt;
+        final Long userId;
+        final AtomicInteger attempts;
 
         EmailOtpEntry(String otp, LocalDateTime expiresAt, Long userId) {
             this.otp = otp;
             this.expiresAt = expiresAt;
             this.createdAt = LocalDateTime.now();
             this.userId = userId;
-            this.attempts = 0;
+            this.attempts = new AtomicInteger(0);
+        }
+    }
+
+    /**
+     * Inner class for storing phone OTP entries with local verification.
+     */
+    private static class PhoneOtpEntry {
+        final String otp;
+        final LocalDateTime expiresAt;
+        final LocalDateTime createdAt;
+        final Long userId;
+        final AtomicInteger attempts;
+
+        PhoneOtpEntry(String otp, LocalDateTime expiresAt, Long userId) {
+            this.otp = otp;
+            this.expiresAt = expiresAt;
+            this.createdAt = LocalDateTime.now();
+            this.userId = userId;
+            this.attempts = new AtomicInteger(0);
         }
     }
 }

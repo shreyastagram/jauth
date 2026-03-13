@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -158,5 +159,18 @@ public class RefreshTokenService {
      */
     private String generateTokenValue() {
         return UUID.randomUUID().toString() + UUID.randomUUID().toString().replace("-", "");
+    }
+
+    /**
+     * Cleanup expired and revoked refresh tokens every 30 minutes.
+     * Prevents database bloat from accumulated tokens.
+     */
+    @Scheduled(fixedRate = 1800000) // 30 minutes
+    @Transactional
+    public void cleanupExpiredTokens() {
+        int deleted = refreshTokenRepository.deleteExpiredOrRevoked(LocalDateTime.now());
+        if (deleted > 0) {
+            logger.info("Cleaned up {} expired/revoked refresh tokens", deleted);
+        }
     }
 }

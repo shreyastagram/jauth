@@ -95,13 +95,14 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     }
 
     private boolean isAuthEndpoint(String path) {
-        return path.contains("/login") || 
-               path.contains("/register") || 
-               path.contains("/oauth2/google");
+        return path.contains("/login") ||
+               path.contains("/register") ||
+               path.contains("/oauth2/google") ||
+               path.contains("/token/validate");
     }
 
     private boolean isOtpEndpoint(String path) {
-        return path.contains("/otp") || 
+        return path.contains("/otp") ||
                path.contains("/forgot-password") ||
                path.contains("/send-verification") ||
                path.contains("/resend");

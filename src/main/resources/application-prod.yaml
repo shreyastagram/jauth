@@ -40,7 +40,7 @@ spring:
   # JPA/Hibernate Configuration
   jpa:
     hibernate:
-      ddl-auto: update            # Use 'validate' in strict production
+      ddl-auto: validate
     show-sql: false               # Disable SQL logging in production
     properties:
       hibernate:
@@ -89,6 +89,13 @@ server:
     include-message: always
     include-binding-errors: always
 
+# Disable Swagger/OpenAPI in production
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
 # Logging Configuration (reduced for production)
 logging:
   level:
@@ -133,9 +140,13 @@ fixhomi:
         sender-email: ${BREVO_SENDER_EMAIL:noreply@fixhomi.com}
         sender-name: ${BREVO_SENDER_NAME:FixHomi}
     sms:
-      # Use 'stub' for testing, 'twilio' for production SMS
+      # Use 'stub' for testing, 'twilio' or 'msg91' for production SMS
       provider: ${SMS_PROVIDER:stub}
       twilio:
         account-sid: ${TWILIO_ACCOUNT_SID:}
         auth-token: ${TWILIO_AUTH_TOKEN:}
         phone-number: ${TWILIO_PHONE_NUMBER:}
+      msg91:
+        auth-key: ${MSG91_AUTH_KEY:}
+        template-id: ${MSG91_TEMPLATE_ID:}
+        sender-id: ${MSG91_SENDER_ID:}

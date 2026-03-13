@@ -66,7 +66,7 @@ google:
 # IMPORTANT: This secret MUST match the JWT_SECRET in Node.js backend's .env file
 # Both services verify the same tokens, so they need the same secret
 jwt:
-  secret: ${JWT_SECRET:xXbeJ9A1aU3vpD1YKHQ7tBqvOYlZqZet0pywMSHW3D4QEdDdIqnp244kqTxYjn7b1HxgfHR2Sbi6qupfAA123456}
+  secret: ${JWT_SECRET}  # REQUIRED — must be set in environment. No default for security.
   expiration:
     ms: 86400000  # 24 hours in milliseconds
   issuer: fixhomi-auth-service
@@ -135,9 +135,9 @@ fixhomi:
         sender-email: ${BREVO_SENDER_EMAIL:noreply@fixhomi.com}
         sender-name: ${BREVO_SENDER_NAME:FixHomi}
     
-    # SMS service configuration  
+    # SMS service configuration
     sms:
-      # Provider: 'stub' for development, 'twilio' for production
+      # Provider: 'stub' for development, 'twilio' or 'msg91' for production
       provider: ${SMS_PROVIDER:stub}
       twilio:
         account-sid: ${TWILIO_ACCOUNT_SID:}
@@ -148,6 +148,10 @@ fixhomi:
         trial-mode: ${TWILIO_TRIAL_MODE:true}
         # Your verified phone number (only this receives OTPs in trial mode)
         verified-phone: ${TWILIO_VERIFIED_PHONE:}
+      msg91:
+        auth-key: ${MSG91_AUTH_KEY:}
+        template-id: ${MSG91_TEMPLATE_ID:}
+        sender-id: ${MSG91_SENDER_ID:}
 
   # Rate limiting configuration
   rate-limit:

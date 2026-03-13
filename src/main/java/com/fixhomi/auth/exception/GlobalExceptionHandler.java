@@ -8,6 +8,8 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Global exception handler for REST controllers.
@@ -15,6 +17,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     /**
      * Handle authentication exceptions.
@@ -240,8 +244,8 @@ public class GlobalExceptionHandler {
                 request.getRequestURI()
         );
         
-        // Log the full exception for debugging
-        ex.printStackTrace();
+        // Log the full exception for debugging (never expose to client)
+        logger.error("Unhandled exception on {}: {}", request.getRequestURI(), ex.getMessage(), ex);
         
         return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
     }

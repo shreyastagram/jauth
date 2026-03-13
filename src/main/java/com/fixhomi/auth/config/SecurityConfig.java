@@ -53,15 +53,25 @@ public class SecurityConfig {
         http
                 // Disable CSRF for stateless JWT authentication
                 .csrf(csrf -> csrf.disable())
-                
+
                 // Configure CORS
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                
+
+                // Security headers
+                .headers(headers -> headers
+                    .frameOptions(frame -> frame.deny())
+                    .contentTypeOptions(contentType -> {})
+                    .httpStrictTransportSecurity(hsts -> hsts
+                        .includeSubDomains(true)
+                        .maxAgeInSeconds(31536000)
+                    )
+                )
+
                 // Stateless session management
-                .sessionManagement(session -> 
+                .sessionManagement(session ->
                     session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
-                
+
                 // Configure authorization rules
                 .authorizeHttpRequests(auth -> auth
                     // Public endpoints (no authentication required)
@@ -88,12 +98,7 @@ public class SecurityConfig {
                         "/login/oauth2/**",
                         "/actuator/health",
                         "/actuator/health/**",
-                        "/actuator/info",
-                        "/h2-console/**",
-                        // OpenAPI/Swagger endpoints
-                        "/v3/api-docs/**",
-                        "/swagger-ui/**",
-                        "/swagger-ui.html"
+                        "/actuator/info"
                     ).permitAll()
                     
                     // Admin endpoints - protected by @PreAuthorize at method level
@@ -157,8 +162,11 @@ public class SecurityConfig {
         List<String> origins = Arrays.asList(allowedOrigins.split(","));
         configuration.setAllowedOrigins(origins);
         
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("*"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+        configuration.setAllowedHeaders(Arrays.asList(
+            "Authorization", "Content-Type", "Accept", "Origin",
+            "X-Requested-With", "Cache-Control"
+        ));
         configuration.setExposedHeaders(Arrays.asList("Authorization"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);

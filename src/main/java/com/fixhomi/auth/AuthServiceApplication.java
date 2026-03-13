@@ -3,10 +3,12 @@ package com.fixhomi.auth;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import com.fixhomi.auth.config.JwtProperties;
 import com.fixhomi.auth.config.FixhomiProperties;
 
 @SpringBootApplication
+@EnableScheduling
 @EnableConfigurationProperties({JwtProperties.class, FixhomiProperties.class})
 public class AuthServiceApplication {
 

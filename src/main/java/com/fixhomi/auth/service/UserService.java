@@ -22,7 +22,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Service for user account lifecycle operations.
@@ -31,6 +34,10 @@ import java.time.LocalDateTime;
 public class UserService {
 
     private static final Logger logger = LoggerFactory.getLogger(UserService.class);
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
+    // In-memory store for delete account OTPs
+    private final ConcurrentHashMap<String, DeleteOtpEntry> deleteOtpStore = new ConcurrentHashMap<>();
 
     @Autowired
     private UserRepository userRepository;
@@ -280,7 +287,7 @@ public class UserService {
 
     /**
      * Request OTP for account deletion.
-     * Sends OTP to user's verified phone number.
+     * OTP is generated locally and sent via SMS provider.
      *
      * @param email user's email from JWT token
      * @return masked phone number where OTP was sent
@@ -301,21 +308,27 @@ public class UserService {
             throw new InvalidPasswordException("Phone number is not verified. Please verify your phone first.");
         }
 
-        // Send OTP via Twilio Verify API
-        boolean sent = smsService.startVerification(phoneNumber);
+        // Generate OTP locally
+        String otp = generateOtp();
+        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(5);
+        deleteOtpStore.put(phoneNumber, new DeleteOtpEntry(otp, expiresAt));
+
+        // Send OTP via SMS provider
+        boolean sent = smsService.sendOtp(phoneNumber, otp);
         if (!sent) {
+            deleteOtpStore.remove(phoneNumber);
             throw new RuntimeException("Failed to send OTP. Please try again later.");
         }
 
-        logger.info("📱 Delete account OTP sent for user: {} to phone: {}", 
+        logger.info("Delete account OTP sent for user: {} to phone: {}",
                 email, maskPhoneNumber(phoneNumber));
 
         return maskPhoneNumber(phoneNumber);
     }
 
     /**
-     * Delete user account with OTP verification (production-grade).
-     * Verifies OTP before performing soft delete.
+     * Delete user account with OTP verification.
+     * OTP is verified locally.
      *
      * @param email user's email from JWT token
      * @param request delete account request with OTP
@@ -332,18 +345,36 @@ public class UserService {
             throw new InvalidPasswordException("No phone number registered.");
         }
 
-        // Verify OTP via Twilio Verify API
-        boolean otpValid = smsService.checkVerification(phoneNumber, request.getOtp());
-        if (!otpValid) {
-            logger.warn("❌ Invalid OTP attempt for account deletion. User: {}", email);
+        // Verify OTP locally
+        DeleteOtpEntry otpEntry = deleteOtpStore.get(phoneNumber);
+        if (otpEntry == null) {
+            throw new InvalidPasswordException("No pending OTP. Please request a new code.");
+        }
+
+        if (otpEntry.expiresAt.isBefore(LocalDateTime.now())) {
+            deleteOtpStore.remove(phoneNumber);
+            throw new InvalidPasswordException("OTP has expired. Please request a new one.");
+        }
+
+        int currentAttempts = otpEntry.attempts.incrementAndGet();
+        if (currentAttempts > 3) {
+            deleteOtpStore.remove(phoneNumber);
+            throw new InvalidPasswordException("Maximum verification attempts exceeded. Please request a new OTP.");
+        }
+
+        if (!otpEntry.otp.equals(request.getOtp())) {
+            logger.warn("Invalid OTP attempt for account deletion. User: {}", email);
             throw new InvalidPasswordException("Invalid or expired OTP. Please request a new code.");
         }
 
-        // OTP verified - perform soft delete
+        // OTP verified — remove from store
+        deleteOtpStore.remove(phoneNumber);
+
+        // Perform soft delete
         String reason = request.getReason() != null ? request.getReason() : "User requested deletion";
         performSoftDelete(user, reason);
 
-        logger.info("🗑️ Account deleted for user: {} (ID: {}) - OTP verified", email, user.getId());
+        logger.info("Account deleted for user: {} (ID: {}) - OTP verified", email, user.getId());
 
         return new MessageResponse("Account deleted successfully. We're sorry to see you go.");
     }
@@ -434,5 +465,28 @@ public class UserService {
             return "****";
         }
         return "****" + phone.substring(phone.length() - 4);
+    }
+
+    private String generateOtp() {
+        StringBuilder otp = new StringBuilder();
+        for (int i = 0; i < 6; i++) {
+            otp.append(SECURE_RANDOM.nextInt(10));
+        }
+        return otp.toString();
+    }
+
+    /**
+     * Inner class for delete account OTP entries.
+     */
+    private static class DeleteOtpEntry {
+        final String otp;
+        final LocalDateTime expiresAt;
+        final AtomicInteger attempts;
+
+        DeleteOtpEntry(String otp, LocalDateTime expiresAt) {
+            this.otp = otp;
+            this.expiresAt = expiresAt;
+            this.attempts = new AtomicInteger(0);
+        }
     }
 }

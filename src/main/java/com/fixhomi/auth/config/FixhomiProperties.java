@@ -204,11 +204,12 @@ public class FixhomiProperties {
         }
 
         /**
-         * SMS notification settings (Twilio).
+         * SMS notification settings (Twilio / MSG91).
          */
         public static class Sms {
             private String provider = "stub";
             private Twilio twilio = new Twilio();
+            private Msg91 msg91 = new Msg91();
 
             public String getProvider() {
                 return provider;
@@ -224,6 +225,14 @@ public class FixhomiProperties {
 
             public void setTwilio(Twilio twilio) {
                 this.twilio = twilio;
+            }
+
+            public Msg91 getMsg91() {
+                return msg91;
+            }
+
+            public void setMsg91(Msg91 msg91) {
+                this.msg91 = msg91;
             }
 
             public static class Twilio {
@@ -253,6 +262,36 @@ public class FixhomiProperties {
 
                 public void setFromNumber(String fromNumber) {
                     this.fromNumber = fromNumber;
+                }
+            }
+
+            public static class Msg91 {
+                private String authKey;
+                private String templateId;
+                private String senderId;
+
+                public String getAuthKey() {
+                    return authKey;
+                }
+
+                public void setAuthKey(String authKey) {
+                    this.authKey = authKey;
+                }
+
+                public String getTemplateId() {
+                    return templateId;
+                }
+
+                public void setTemplateId(String templateId) {
+                    this.templateId = templateId;
+                }
+
+                public String getSenderId() {
+                    return senderId;
+                }
+
+                public void setSenderId(String senderId) {
+                    this.senderId = senderId;
                 }
             }
         }
