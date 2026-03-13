@@ -37,6 +37,7 @@ SMS_PROVIDER=stub
 ```
 EMAIL_PROVIDER=brevo
 BREVO_API_KEY=xkeysib-your-key
+
 SMS_PROVIDER=msg91
 MSG91_AUTH_KEY=your-auth-key
 MSG91_TEMPLATE_ID=your-template-id

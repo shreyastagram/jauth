@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.Order;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -147,18 +148,76 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     }
 
     /**
-     * Get client IP address, handling proxies.
+     * Get client IP address safely for rate limiting.
+     *
+     * On Render.com, the reverse proxy sets X-Forwarded-For but any client can
+     * also inject that header. Using request.getRemoteAddr() gives us the actual
+     * TCP connection IP (Render's proxy), which is safe and un-spoofable.
+     *
+     * We only fall back to X-Forwarded-For when remoteAddr is a private/loopback
+     * address, meaning we're running behind a local dev proxy. In that case we
+     * take the rightmost non-private IP (the one the trusted proxy saw).
      */
     private String getClientIP(HttpServletRequest request) {
+        String remoteAddr = request.getRemoteAddr();
+
+        // In production (Render), remoteAddr is the proxy's public IP or the
+        // container-network IP that Render controls — use it directly.
+        if (!isPrivateOrLoopback(remoteAddr)) {
+            return remoteAddr;
+        }
+
+        // Behind a local/dev proxy — extract IP from X-Forwarded-For.
+        // Take the rightmost non-private IP (last hop before our trusted proxy).
         String xForwardedFor = request.getHeader("X-Forwarded-For");
         if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
-            return xForwardedFor.split(",")[0].trim();
+            String[] ips = xForwardedFor.split(",");
+            for (int i = ips.length - 1; i >= 0; i--) {
+                String ip = ips[i].trim();
+                if (!ip.isEmpty() && !isPrivateOrLoopback(ip)) {
+                    return ip;
+                }
+            }
+            // All IPs in the chain are private — use the first one
+            return ips[0].trim();
         }
-        String xRealIp = request.getHeader("X-Real-IP");
-        if (xRealIp != null && !xRealIp.isEmpty()) {
-            return xRealIp;
+
+        return remoteAddr;
+    }
+
+    /**
+     * Check if an IP address is a private (RFC 1918) or loopback address.
+     */
+    private boolean isPrivateOrLoopback(String ip) {
+        if (ip == null || ip.isEmpty()) return true;
+        if ("127.0.0.1".equals(ip) || "0:0:0:0:0:0:0:1".equals(ip) || "::1".equals(ip)) {
+            return true;
         }
-        return request.getRemoteAddr();
+        // IPv4 private ranges
+        if (ip.startsWith("10.")) return true;
+        if (ip.startsWith("192.168.")) return true;
+        if (ip.startsWith("172.")) {
+            try {
+                int second = Integer.parseInt(ip.split("\\.")[1]);
+                return second >= 16 && second <= 31;
+            } catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Periodic cleanup of rate limit buckets to prevent unbounded memory growth.
+     * Runs every 30 minutes. Clears all buckets so stale entries don't accumulate.
+     */
+    @Scheduled(fixedRate = 1800000)
+    public void cleanupBuckets() {
+        int totalSize = authBuckets.size() + otpBuckets.size() + generalBuckets.size();
+        authBuckets.clear();
+        otpBuckets.clear();
+        generalBuckets.clear();
+        logger.info("Rate limit bucket cleanup: cleared {} entries", totalSize);
     }
 
     /**

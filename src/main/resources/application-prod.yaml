@@ -40,7 +40,9 @@ spring:
   # JPA/Hibernate Configuration
   jpa:
     hibernate:
-      ddl-auto: validate
+      # Temporary unblock: allow missing OTP tables to be created automatically.
+      # Revert to 'validate' after schema migration is applied.
+      ddl-auto: update
     show-sql: false               # Disable SQL logging in production
     properties:
       hibernate:
@@ -119,7 +121,7 @@ fixhomi:
       expiration-minutes: 5
       max-attempts: 3
       length: 6
-      rate-limit-minutes: 1
+      rate-limit-minutes: 5
       rate-limit-max-requests: 3
     email:
       expiration-hours: 24
@@ -145,4 +147,6 @@ fixhomi:
       msg91:
         auth-key: ${MSG91_AUTH_KEY:}
         template-id: ${MSG91_TEMPLATE_ID:}
+        verification-template-id: ${MSG91_VERIFICATION_TEMPLATE_ID:}
+        delete-template-id: ${MSG91_DELETE_TEMPLATE_ID:}
         sender-id: ${MSG91_SENDER_ID:}

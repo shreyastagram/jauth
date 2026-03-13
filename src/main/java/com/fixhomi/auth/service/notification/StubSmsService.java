@@ -19,31 +19,32 @@ public class StubSmsService implements SmsService {
 
     @Override
     public boolean sendOtp(String phoneNumber, String otp) {
-        logger.info("╔════════════════════════════════════════╗");
-        logger.info("║     STUB SMS SERVICE - DEV MODE        ║");
-        logger.info("╠════════════════════════════════════════╣");
-        logger.info("║ TO: {}", padRight(phoneNumber, 30) + "║");
-        logger.info("║ OTP CODE: {}", padRight(otp, 26) + "║");
-        logger.info("║                                        ║");
-        logger.info("║ Use code {} to verify              ║", padRight(otp, 6));
-        logger.info("╚════════════════════════════════════════╝");
+        return sendOtp(phoneNumber, otp, "DEFAULT_LOGIN");
+    }
+
+    @Override
+    public boolean sendOtp(String phoneNumber, String otp, String templateId) {
+        String templateLabel = templateId != null ? templateId : "DEFAULT_LOGIN";
+        logger.info("========================================");
+        logger.info("     STUB SMS SERVICE - DEV MODE        ");
+        logger.info("========================================");
+        logger.info(" TEMPLATE: {}", templateLabel);
+        logger.info(" TO: {}", phoneNumber);
+        logger.info(" OTP CODE: {}", otp);
+        logger.info(" Use code {} to verify", otp);
+        logger.info("========================================");
         return true;
     }
 
     @Override
     public boolean sendVerificationSuccess(String phoneNumber) {
-        logger.info("╔════════════════════════════════════════╗");
-        logger.info("║     STUB SMS SERVICE - DEV MODE        ║");
-        logger.info("╠════════════════════════════════════════╣");
-        logger.info("║ TYPE: Verification Success             ║");
-        logger.info("║ TO: {}", padRight(phoneNumber, 30) + "║");
-        logger.info("║ MESSAGE: Phone verified successfully!  ║");
-        logger.info("╚════════════════════════════════════════╝");
+        logger.info("========================================");
+        logger.info("     STUB SMS SERVICE - DEV MODE        ");
+        logger.info("========================================");
+        logger.info(" TYPE: Verification Success             ");
+        logger.info(" TO: {}", phoneNumber);
+        logger.info(" MESSAGE: Phone verified successfully!  ");
+        logger.info("========================================");
         return true;
-    }
-
-    private String padRight(String s, int n) {
-        if (s == null) s = "";
-        return String.format("%-" + n + "s", s);
     }
 }

@@ -44,6 +44,12 @@ public class Msg91SmsService implements SmsService {
     @Value("${fixhomi.notification.sms.msg91.template-id:}")
     private String templateId;
 
+    @Value("${fixhomi.notification.sms.msg91.verification-template-id:}")
+    private String verificationTemplateId;
+
+    @Value("${fixhomi.notification.sms.msg91.delete-template-id:}")
+    private String deleteTemplateId;
+
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
 
@@ -84,16 +90,27 @@ public class Msg91SmsService implements SmsService {
      */
     @Override
     public boolean sendOtp(String phoneNumber, String otp) {
+        return sendOtp(phoneNumber, otp, templateId);
+    }
+
+    @Override
+    public boolean sendOtp(String phoneNumber, String otp, String overrideTemplateId) {
         String normalizedPhone = normalizePhone(phoneNumber);
         if (normalizedPhone == null || normalizedPhone.isBlank()) {
             logger.warn("Invalid phone number provided for MSG91 OTP");
             return false;
         }
 
-        logger.info("Sending OTP via MSG91 Flow API to: {}", maskPhoneNumber(normalizedPhone));
+        // Use override template if provided, otherwise fall back to default
+        String effectiveTemplateId = (overrideTemplateId != null && !overrideTemplateId.isBlank())
+                ? overrideTemplateId : templateId;
+
+        logger.info("Sending OTP via MSG91 Flow API to: {} (template: {}...)",
+                maskPhoneNumber(normalizedPhone),
+                effectiveTemplateId.substring(0, Math.min(8, effectiveTemplateId.length())));
 
         try {
-            validateConfig();
+            validateConfig(effectiveTemplateId);
 
             HttpHeaders headers = new HttpHeaders();
             headers.set("authkey", authKey);
@@ -109,7 +126,7 @@ public class Msg91SmsService implements SmsService {
             recipients.add(recipient);
 
             ObjectNode body = objectMapper.createObjectNode();
-            body.put("template_id", templateId);
+            body.put("template_id", effectiveTemplateId);
             body.put("short_url", "0");
             body.set("recipients", recipients);
 
@@ -150,6 +167,20 @@ public class Msg91SmsService implements SmsService {
         }
     }
 
+    /**
+     * Get the verification template ID (for phone verification).
+     */
+    public String getVerificationTemplateId() {
+        return verificationTemplateId;
+    }
+
+    /**
+     * Get the delete account template ID.
+     */
+    public String getDeleteTemplateId() {
+        return deleteTemplateId;
+    }
+
     @Override
     public boolean sendVerificationSuccess(String phoneNumber) {
         logger.debug("Phone verified: {} (success SMS skipped)", maskPhoneNumber(phoneNumber));
@@ -173,11 +204,11 @@ public class Msg91SmsService implements SmsService {
     /**
      * Validate MSG91 configuration.
      */
-    private void validateConfig() {
+    private void validateConfig(String effectiveTemplateId) {
         if (authKey == null || authKey.isBlank()) {
             throw new IllegalStateException("MSG91 Auth Key is not configured");
         }
-        if (templateId == null || templateId.isBlank()) {
+        if (effectiveTemplateId == null || effectiveTemplateId.isBlank()) {
             throw new IllegalStateException("MSG91 Template ID is not configured");
         }
     }

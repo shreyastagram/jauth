@@ -1,9 +1,11 @@
 package com.fixhomi.auth.service;
 
+import com.fixhomi.auth.entity.PasswordResetOtp;
 import com.fixhomi.auth.entity.PasswordResetToken;
 import com.fixhomi.auth.entity.User;
 import com.fixhomi.auth.exception.AuthenticationException;
 import com.fixhomi.auth.exception.VerificationException;
+import com.fixhomi.auth.repository.PasswordResetOtpRepository;
 import com.fixhomi.auth.repository.PasswordResetTokenRepository;
 import com.fixhomi.auth.repository.UserRepository;
 import com.fixhomi.auth.service.notification.EmailService;
@@ -21,8 +23,6 @@ import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Service for password reset functionality.
@@ -35,11 +35,11 @@ public class PasswordResetService {
     private static final Logger logger = LoggerFactory.getLogger(PasswordResetService.class);
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
-    // In-memory store for phone-based password reset OTPs
-    private final ConcurrentHashMap<String, PhoneResetOtpEntry> phoneResetOtpStore = new ConcurrentHashMap<>();
-
     @Autowired
     private PasswordResetTokenRepository tokenRepository;
+
+    @Autowired
+    private PasswordResetOtpRepository passwordResetOtpRepository;
 
     @Autowired
     private UserRepository userRepository;
@@ -70,6 +70,9 @@ public class PasswordResetService {
 
     @Value("${fixhomi.verification.otp.length:6}")
     private int otpLength;
+
+    @Value("${fixhomi.verification.otp.rate-limit-max-requests:3}")
+    private int otpRateLimitMaxRequests;
 
     @Value("${fixhomi.verification.password-reset.base-url:fixhomi://auth}")
     private String frontendBaseUrl;
@@ -166,14 +169,15 @@ public class PasswordResetService {
      * Request password reset via phone OTP.
      * OTP is generated locally and sent via SMS provider.
      */
+    @Transactional
     public String requestPasswordResetOtp(String phoneNumber) {
         logger.debug("Password reset OTP requested for phone: {}", maskPhoneNumber(phoneNumber));
 
         String normalizedPhone = normalizePhoneNumber(phoneNumber);
 
         // Rate limiting
-        PhoneResetOtpEntry existing = phoneResetOtpStore.get(normalizedPhone);
-        if (existing != null && existing.createdAt.plusMinutes(1).isAfter(LocalDateTime.now())) {
+        long recentRequests = passwordResetOtpRepository.countRecentOtpRequests(normalizedPhone, LocalDateTime.now().minusMinutes(rateLimitMinutes));
+        if (recentRequests >= otpRateLimitMaxRequests) {
             throw new VerificationException("Too many OTP requests. Please wait before trying again.");
         }
 
@@ -191,17 +195,22 @@ public class PasswordResetService {
             throw new AuthenticationException("This account uses Google Sign-In and doesn't have a password to reset.");
         }
 
+        // Invalidate old OTPs
+        passwordResetOtpRepository.invalidateAllOtpsForPhone(normalizedPhone);
+
         // Generate OTP locally
         String otp = generateOtp();
         LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(otpExpirationMinutes);
 
-        // Store for local verification
-        phoneResetOtpStore.put(normalizedPhone, new PhoneResetOtpEntry(otp, expiresAt, user.getId()));
+        // Save to database
+        PasswordResetOtp resetOtp = new PasswordResetOtp(user.getId(), normalizedPhone, otp, expiresAt);
+        passwordResetOtpRepository.save(resetOtp);
 
         // Send via SMS provider
         boolean sent = smsService.sendOtp(normalizedPhone, otp);
         if (!sent) {
-            phoneResetOtpStore.remove(normalizedPhone);
+            resetOtp.markAsUsed(); // invalidate the OTP
+            passwordResetOtpRepository.save(resetOtp);
             logger.warn("Failed to send password reset OTP to: {}", maskPhoneNumber(normalizedPhone));
             throw new VerificationException("Failed to send OTP. Please try again.");
         }
@@ -219,35 +228,41 @@ public class PasswordResetService {
         String normalizedPhone = normalizePhoneNumber(phoneNumber);
 
         // Get stored OTP
-        PhoneResetOtpEntry otpEntry = phoneResetOtpStore.get(normalizedPhone);
+        PasswordResetOtp otpEntry = passwordResetOtpRepository.findLatestValidOtp(normalizedPhone, LocalDateTime.now())
+                .orElse(null);
         if (otpEntry == null) {
             throw new VerificationException("No pending password reset. Please request a new OTP.");
         }
 
         // Check expiration
-        if (otpEntry.expiresAt.isBefore(LocalDateTime.now())) {
-            phoneResetOtpStore.remove(normalizedPhone);
+        if (otpEntry.isExpired()) {
+            otpEntry.markAsUsed();
+            passwordResetOtpRepository.save(otpEntry);
             throw new VerificationException("OTP has expired. Please request a new one.");
         }
 
         // Increment and check attempts
-        int currentAttempts = otpEntry.attempts.incrementAndGet();
+        otpEntry.incrementAttempts();
+        int currentAttempts = otpEntry.getAttempts();
         if (currentAttempts > maxAttempts) {
-            phoneResetOtpStore.remove(normalizedPhone);
+            otpEntry.markAsUsed();
+            passwordResetOtpRepository.save(otpEntry);
             throw new VerificationException("Maximum verification attempts exceeded. Please request a new OTP.");
         }
 
         // Verify OTP
-        if (!otpEntry.otp.equals(otp)) {
+        if (!java.security.MessageDigest.isEqual(otpEntry.getOtp().getBytes(java.nio.charset.StandardCharsets.UTF_8), otp.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
+            passwordResetOtpRepository.save(otpEntry);
             int remainingAttempts = maxAttempts - currentAttempts;
             throw new VerificationException("Invalid OTP. " + remainingAttempts + " attempt(s) remaining.");
         }
 
-        // OTP verified — remove from store
-        phoneResetOtpStore.remove(normalizedPhone);
+        // OTP verified — mark as used
+        otpEntry.markAsUsed();
+        passwordResetOtpRepository.save(otpEntry);
 
         // Get user and reset password
-        User user = userRepository.findById(otpEntry.userId)
+        User user = userRepository.findById(otpEntry.getUserId())
                 .orElseThrow(() -> new VerificationException("User not found"));
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));
@@ -309,32 +324,11 @@ public class PasswordResetService {
      * Cleanup expired phone reset OTP entries every 10 minutes.
      */
     @Scheduled(fixedRate = 600000)
+    @Transactional
     public void cleanupExpiredEntries() {
-        LocalDateTime now = LocalDateTime.now();
-        int sizeBefore = phoneResetOtpStore.size();
-        phoneResetOtpStore.entrySet().removeIf(e -> e.getValue().expiresAt.isBefore(now));
-        int removed = sizeBefore - phoneResetOtpStore.size();
+        int removed = passwordResetOtpRepository.deleteExpiredOtps(LocalDateTime.now());
         if (removed > 0) {
             logger.info("Cleaned up {} expired phone reset OTP entries", removed);
-        }
-    }
-
-    /**
-     * Inner class for phone-based password reset OTP entries.
-     */
-    private static class PhoneResetOtpEntry {
-        final String otp;
-        final LocalDateTime expiresAt;
-        final LocalDateTime createdAt;
-        final Long userId;
-        final AtomicInteger attempts;
-
-        PhoneResetOtpEntry(String otp, LocalDateTime expiresAt, Long userId) {
-            this.otp = otp;
-            this.expiresAt = expiresAt;
-            this.createdAt = LocalDateTime.now();
-            this.userId = userId;
-            this.attempts = new AtomicInteger(0);
         }
     }
 }

@@ -107,7 +107,7 @@ fixhomi:
       expiration-minutes: 5
       max-attempts: 3
       length: 6
-      rate-limit-minutes: 1
+      rate-limit-minutes: 5
       rate-limit-max-requests: 3
     
     # Email verification settings
@@ -142,6 +142,8 @@ fixhomi:
       msg91:
         auth-key: ${MSG91_AUTH_KEY:}
         template-id: ${MSG91_TEMPLATE_ID:}
+        verification-template-id: ${MSG91_VERIFICATION_TEMPLATE_ID:}
+        delete-template-id: ${MSG91_DELETE_TEMPLATE_ID:}
         sender-id: ${MSG91_SENDER_ID:}
 
   # Rate limiting configuration

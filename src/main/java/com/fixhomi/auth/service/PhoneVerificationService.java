@@ -1,8 +1,10 @@
 package com.fixhomi.auth.service;
 
+import com.fixhomi.auth.entity.PhoneOtp;
 import com.fixhomi.auth.entity.User;
 import com.fixhomi.auth.exception.ResourceNotFoundException;
 import com.fixhomi.auth.exception.VerificationException;
+import com.fixhomi.auth.repository.PhoneOtpRepository;
 import com.fixhomi.auth.repository.UserRepository;
 import com.fixhomi.auth.service.notification.SmsService;
 import org.slf4j.Logger;
@@ -15,9 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Service for phone number verification.
@@ -29,11 +28,11 @@ public class PhoneVerificationService {
     private static final Logger logger = LoggerFactory.getLogger(PhoneVerificationService.class);
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
-    // In-memory OTP store for phone verification
-    private final Map<String, PhoneOtpEntry> otpStore = new ConcurrentHashMap<>();
-
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private PhoneOtpRepository phoneOtpRepository;
 
     @Autowired
     private SmsService smsService;
@@ -47,13 +46,20 @@ public class PhoneVerificationService {
     @Value("${fixhomi.verification.otp.length:6}")
     private int otpLength;
 
-    @Value("${fixhomi.verification.otp.rate-limit-minutes:1}")
+    @Value("${fixhomi.verification.otp.rate-limit-minutes:5}")
     private int rateLimitMinutes;
+
+    @Value("${fixhomi.verification.otp.rate-limit-max-requests:3}")
+    private int rateLimitMaxRequests;
+
+    @Value("${fixhomi.notification.sms.msg91.verification-template-id:}")
+    private String verificationTemplateId;
 
     /**
      * Send OTP to user's phone number for verification.
      * OTP is generated locally and sent via SMS provider.
      */
+    @Transactional
     public String sendOtp(String userEmail) {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "email", userEmail));
@@ -69,22 +75,27 @@ public class PhoneVerificationService {
         String phoneNumber = user.getPhoneNumber();
 
         // Rate limiting
-        PhoneOtpEntry existing = otpStore.get(phoneNumber);
-        if (existing != null && existing.createdAt.plusMinutes(rateLimitMinutes).isAfter(LocalDateTime.now())) {
+        long recentRequests = phoneOtpRepository.countRecentOtpRequests(phoneNumber, LocalDateTime.now().minusMinutes(rateLimitMinutes));
+        if (recentRequests >= rateLimitMaxRequests) {
             throw new VerificationException("Too many OTP requests. Please wait before trying again.");
         }
+
+        // Invalidate old OTPs
+        phoneOtpRepository.invalidateAllUserOtps(user.getId(), phoneNumber);
 
         // Generate OTP locally
         String otp = generateOtp();
         LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(otpExpirationMinutes);
 
-        // Store for local verification
-        otpStore.put(phoneNumber, new PhoneOtpEntry(otp, expiresAt));
+        // Save to database
+        PhoneOtp phoneOtp = new PhoneOtp(user.getId(), phoneNumber, otp, expiresAt);
+        phoneOtpRepository.save(phoneOtp);
 
-        // Send via SMS provider
-        boolean sent = smsService.sendOtp(phoneNumber, otp);
+        // Send via SMS provider using verification template
+        boolean sent = smsService.sendOtp(phoneNumber, otp, verificationTemplateId);
         if (!sent) {
-            otpStore.remove(phoneNumber);
+            phoneOtp.setVerified(true); // invalidate the OTP
+            phoneOtpRepository.save(phoneOtp);
             logger.warn("Failed to send phone verification OTP for: {}", maskPhoneNumber(phoneNumber));
             throw new VerificationException("Failed to send OTP. Please try again.");
         }
@@ -115,32 +126,38 @@ public class PhoneVerificationService {
         String phoneNumber = user.getPhoneNumber();
 
         // Get stored OTP
-        PhoneOtpEntry otpEntry = otpStore.get(phoneNumber);
+        PhoneOtp otpEntry = phoneOtpRepository.findLatestValidOtpByPhone(phoneNumber, LocalDateTime.now())
+                .orElse(null);
         if (otpEntry == null) {
             throw new VerificationException("No pending verification. Please request a new OTP.");
         }
 
         // Check expiration
-        if (otpEntry.expiresAt.isBefore(LocalDateTime.now())) {
-            otpStore.remove(phoneNumber);
+        if (otpEntry.isExpired()) {
+            otpEntry.setVerified(true);
+            phoneOtpRepository.save(otpEntry);
             throw new VerificationException("OTP has expired. Please request a new one.");
         }
 
         // Increment and check attempts
-        int currentAttempts = otpEntry.attempts.incrementAndGet();
+        otpEntry.incrementAttempts();
+        int currentAttempts = otpEntry.getAttempts();
         if (currentAttempts > maxAttempts) {
-            otpStore.remove(phoneNumber);
+            otpEntry.setVerified(true);
+            phoneOtpRepository.save(otpEntry);
             throw new VerificationException("Maximum verification attempts exceeded. Please request a new OTP.");
         }
 
         // Verify OTP
-        if (!otpEntry.otp.equals(otpCode)) {
+        if (!java.security.MessageDigest.isEqual(otpEntry.getOtp().getBytes(java.nio.charset.StandardCharsets.UTF_8), otpCode.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
+            phoneOtpRepository.save(otpEntry);
             int remainingAttempts = maxAttempts - currentAttempts;
             throw new VerificationException("Invalid OTP. " + remainingAttempts + " attempt(s) remaining.");
         }
 
-        // OTP verified — remove from store
-        otpStore.remove(phoneNumber);
+        // OTP verified — mark as verified
+        otpEntry.setVerified(true);
+        phoneOtpRepository.save(otpEntry);
 
         // Mark user's phone as verified
         user.setIsPhoneVerified(true);
@@ -156,11 +173,9 @@ public class PhoneVerificationService {
      * Cleanup expired OTP entries every 10 minutes.
      */
     @Scheduled(fixedRate = 600000)
+    @Transactional
     public void cleanupExpiredEntries() {
-        LocalDateTime now = LocalDateTime.now();
-        int sizeBefore = otpStore.size();
-        otpStore.entrySet().removeIf(e -> e.getValue().expiresAt.isBefore(now));
-        int removed = sizeBefore - otpStore.size();
+        int removed = phoneOtpRepository.deleteExpiredOtps(LocalDateTime.now());
         if (removed > 0) {
             logger.info("Cleaned up {} expired phone verification OTP entries", removed);
         }
@@ -179,22 +194,5 @@ public class PhoneVerificationService {
             return "****";
         }
         return "****" + phoneNumber.substring(phoneNumber.length() - 4);
-    }
-
-    /**
-     * Inner class for storing phone OTP entries.
-     */
-    private static class PhoneOtpEntry {
-        final String otp;
-        final LocalDateTime expiresAt;
-        final LocalDateTime createdAt;
-        final AtomicInteger attempts;
-
-        PhoneOtpEntry(String otp, LocalDateTime expiresAt) {
-            this.otp = otp;
-            this.expiresAt = expiresAt;
-            this.createdAt = LocalDateTime.now();
-            this.attempts = new AtomicInteger(0);
-        }
     }
 }

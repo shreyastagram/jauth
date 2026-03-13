@@ -18,10 +18,13 @@ import com.fixhomi.auth.service.notification.SmsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.concurrent.ConcurrentHashMap;
@@ -50,6 +53,9 @@ public class UserService {
 
     @Autowired
     private SmsService smsService;
+
+    @Value("${fixhomi.notification.sms.msg91.delete-template-id:}")
+    private String deleteTemplateId;
 
     /**
      * Get user profile by email (from JWT).
@@ -313,8 +319,8 @@ public class UserService {
         LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(5);
         deleteOtpStore.put(phoneNumber, new DeleteOtpEntry(otp, expiresAt));
 
-        // Send OTP via SMS provider
-        boolean sent = smsService.sendOtp(phoneNumber, otp);
+        // Send OTP via SMS provider using delete account template
+        boolean sent = smsService.sendOtp(phoneNumber, otp, deleteTemplateId);
         if (!sent) {
             deleteOtpStore.remove(phoneNumber);
             throw new RuntimeException("Failed to send OTP. Please try again later.");
@@ -362,7 +368,7 @@ public class UserService {
             throw new InvalidPasswordException("Maximum verification attempts exceeded. Please request a new OTP.");
         }
 
-        if (!otpEntry.otp.equals(request.getOtp())) {
+        if (!MessageDigest.isEqual(otpEntry.otp.getBytes(StandardCharsets.UTF_8), request.getOtp().getBytes(StandardCharsets.UTF_8))) {
             logger.warn("Invalid OTP attempt for account deletion. User: {}", email);
             throw new InvalidPasswordException("Invalid or expired OTP. Please request a new code.");
         }
