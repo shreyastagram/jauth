@@ -5,6 +5,9 @@ import com.fixhomi.auth.dto.EmailOtpLoginRequest;
 import com.fixhomi.auth.dto.EmailOtpVerifyRequest;
 import com.fixhomi.auth.dto.PhoneOtpLoginRequest;
 import com.fixhomi.auth.dto.PhoneOtpVerifyRequest;
+import com.fixhomi.auth.exception.AuthenticationException;
+import com.fixhomi.auth.exception.TooManyRequestsException;
+import com.fixhomi.auth.exception.VerificationException;
 import com.fixhomi.auth.service.OtpLoginService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -75,15 +78,28 @@ public class OtpLoginController {
     @PostMapping("/phone/send-otp")
     public ResponseEntity<?> sendPhoneLoginOtp(@Valid @RequestBody PhoneOtpLoginRequest request) {
         logger.info("Phone OTP login request for: {}", maskPhoneNumber(request.getPhoneNumber()));
-        
+
         try {
             String maskedPhone = otpLoginService.sendPhoneLoginOtp(request.getPhoneNumber());
-            
+
             return ResponseEntity.ok(Map.of(
                 "success", true,
                 "message", "OTP sent successfully to " + maskedPhone,
                 "maskedPhone", maskedPhone,
                 "expiresInMinutes", 5
+            ));
+        } catch (AuthenticationException e) {
+            logger.warn("Phone OTP login rejected: {}", e.getMessage());
+            return ResponseEntity.status(404).body(Map.of(
+                "success", false,
+                "code", "USER_NOT_FOUND",
+                "message", e.getMessage()
+            ));
+        } catch (TooManyRequestsException e) {
+            return ResponseEntity.status(429).body(Map.of(
+                "success", false,
+                "code", "TOO_MANY_REQUESTS",
+                "message", e.getMessage()
             ));
         } catch (Exception e) {
             logger.error("Error sending phone login OTP: {}", e.getMessage());
@@ -130,10 +146,25 @@ public class OtpLoginController {
             logger.info("Phone OTP login successful for: {}", maskPhoneNumber(request.getPhoneNumber()));
             return ResponseEntity.ok(loginResponse);
             
-        } catch (IllegalArgumentException e) {
+        } catch (VerificationException e) {
             logger.warn("Phone OTP verification failed: {}", e.getMessage());
+            String msg = e.getMessage();
+            String code = "INVALID_OTP";
+            if (msg != null) {
+                if (msg.contains("expired")) code = "OTP_EXPIRED";
+                else if (msg.contains("Maximum")) code = "MAX_ATTEMPTS_EXCEEDED";
+                else if (msg.contains("No pending")) code = "OTP_EXPIRED";
+            }
             return ResponseEntity.badRequest().body(Map.of(
                 "success", false,
+                "code", code,
+                "message", msg != null ? msg : "OTP verification failed"
+            ));
+        } catch (AuthenticationException e) {
+            logger.warn("Phone OTP login auth failed: {}", e.getMessage());
+            return ResponseEntity.status(404).body(Map.of(
+                "success", false,
+                "code", "USER_NOT_FOUND",
                 "message", e.getMessage()
             ));
         } catch (Exception e) {
@@ -178,20 +209,27 @@ public class OtpLoginController {
     @PostMapping("/email/send-otp")
     public ResponseEntity<?> sendEmailLoginOtp(@Valid @RequestBody EmailOtpLoginRequest request) {
         logger.info("Email OTP login request for: {}", maskEmail(request.getEmail()));
-        
+
         try {
             String maskedEmail = otpLoginService.sendEmailLoginOtp(request.getEmail());
-            
+
             return ResponseEntity.ok(Map.of(
                 "success", true,
                 "message", "OTP sent successfully to " + maskedEmail,
                 "maskedEmail", maskedEmail,
                 "expiresInMinutes", 5
             ));
-        } catch (IllegalArgumentException e) {
-            logger.warn("Email OTP login request failed: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(Map.of(
+        } catch (AuthenticationException e) {
+            logger.warn("Email OTP login rejected: {}", e.getMessage());
+            return ResponseEntity.status(404).body(Map.of(
                 "success", false,
+                "code", "USER_NOT_FOUND",
+                "message", e.getMessage()
+            ));
+        } catch (TooManyRequestsException e) {
+            return ResponseEntity.status(429).body(Map.of(
+                "success", false,
+                "code", "TOO_MANY_REQUESTS",
                 "message", e.getMessage()
             ));
         } catch (Exception e) {
@@ -239,10 +277,25 @@ public class OtpLoginController {
             logger.info("Email OTP login successful for: {}", maskEmail(request.getEmail()));
             return ResponseEntity.ok(loginResponse);
             
-        } catch (IllegalArgumentException e) {
+        } catch (VerificationException e) {
             logger.warn("Email OTP verification failed: {}", e.getMessage());
+            String msg = e.getMessage();
+            String code = "INVALID_OTP";
+            if (msg != null) {
+                if (msg.contains("expired")) code = "OTP_EXPIRED";
+                else if (msg.contains("Maximum")) code = "MAX_ATTEMPTS_EXCEEDED";
+                else if (msg.contains("No valid")) code = "OTP_EXPIRED";
+            }
             return ResponseEntity.badRequest().body(Map.of(
                 "success", false,
+                "code", code,
+                "message", msg != null ? msg : "OTP verification failed"
+            ));
+        } catch (AuthenticationException e) {
+            logger.warn("Email OTP login auth failed: {}", e.getMessage());
+            return ResponseEntity.status(404).body(Map.of(
+                "success", false,
+                "code", "USER_NOT_FOUND",
                 "message", e.getMessage()
             ));
         } catch (Exception e) {

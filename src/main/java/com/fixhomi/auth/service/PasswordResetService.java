@@ -2,6 +2,7 @@ package com.fixhomi.auth.service;
 
 import com.fixhomi.auth.entity.PasswordResetToken;
 import com.fixhomi.auth.entity.User;
+import com.fixhomi.auth.exception.AuthenticationException;
 import com.fixhomi.auth.exception.VerificationException;
 import com.fixhomi.auth.repository.PasswordResetTokenRepository;
 import com.fixhomi.auth.repository.UserRepository;
@@ -94,14 +95,14 @@ public class PasswordResetService {
         Optional<User> userOptional = userRepository.findByEmail(email);
         if (userOptional.isEmpty()) {
             logger.debug("Password reset requested for non-existent email: {}", maskEmail(email));
-            return;
+            throw new AuthenticationException("No account found with this email address.");
         }
 
         User user = userOptional.get();
 
         if (user.getPasswordHash() == null || user.getPasswordHash().isBlank()) {
             logger.debug("Password reset requested for OAuth-only user: {}", maskEmail(email));
-            return;
+            throw new AuthenticationException("This account uses Google Sign-In and doesn't have a password to reset.");
         }
 
         tokenRepository.invalidateAllUserTokens(user.getId());
@@ -176,18 +177,18 @@ public class PasswordResetService {
             throw new VerificationException("Too many OTP requests. Please wait before trying again.");
         }
 
-        // Find user — silently fail if not found (prevent enumeration)
+        // Find user — reject if not found
         Optional<User> userOptional = userRepository.findByPhoneNumber(normalizedPhone);
         if (userOptional.isEmpty()) {
             logger.debug("Password reset OTP requested for non-existent phone: {}", maskPhoneNumber(normalizedPhone));
-            return maskPhoneNumber(normalizedPhone);
+            throw new AuthenticationException("No account found with this phone number.");
         }
 
         User user = userOptional.get();
 
         if (user.getPasswordHash() == null || user.getPasswordHash().isBlank()) {
             logger.debug("Password reset OTP requested for OAuth-only user: {}", maskPhoneNumber(normalizedPhone));
-            return maskPhoneNumber(normalizedPhone);
+            throw new AuthenticationException("This account uses Google Sign-In and doesn't have a password to reset.");
         }
 
         // Generate OTP locally

@@ -84,12 +84,16 @@ public class OtpLoginService {
             throw new TooManyRequestsException("Too many OTP requests. Please wait before trying again.");
         }
 
-        // Find user — return same response whether user exists or not (prevent enumeration)
+        // Find user — reject if not registered
         User user = userRepository.findByPhoneNumber(phoneNumber).orElse(null);
 
-        if (user == null || !user.getIsActive()) {
-            logger.warn("Phone OTP requested for non-existent or inactive phone: {}", maskPhoneNumber(phoneNumber));
-            return maskPhoneNumber(phoneNumber);
+        if (user == null) {
+            logger.warn("Phone OTP requested for non-existent phone: {}", maskPhoneNumber(phoneNumber));
+            throw new AuthenticationException("No account found with this phone number. Please sign up first.");
+        }
+        if (!user.getIsActive()) {
+            logger.warn("Phone OTP requested for inactive phone: {}", maskPhoneNumber(phoneNumber));
+            throw new AuthenticationException("Your account has been disabled. Please contact support.");
         }
 
         // Generate OTP locally
@@ -198,12 +202,16 @@ public class OtpLoginService {
             throw new TooManyRequestsException("Too many OTP requests. Please wait before trying again.");
         }
 
-        // Find user — return same response whether user exists or not (prevent enumeration)
+        // Find user — reject if not registered
         User user = userRepository.findByEmail(email).orElse(null);
 
-        if (user == null || !user.getIsActive()) {
-            logger.warn("Email OTP requested for non-existent or inactive email: {}", maskEmail(email));
-            return maskEmail(email);
+        if (user == null) {
+            logger.warn("Email OTP requested for non-existent email: {}", maskEmail(email));
+            throw new AuthenticationException("No account found with this email. Please sign up first.");
+        }
+        if (!user.getIsActive()) {
+            logger.warn("Email OTP requested for inactive email: {}", maskEmail(email));
+            throw new AuthenticationException("Your account has been disabled. Please contact support.");
         }
 
         // Generate new OTP

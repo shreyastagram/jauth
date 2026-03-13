@@ -1,16 +1,23 @@
 package com.fixhomi.auth.controller;
 
 import com.fixhomi.auth.dto.*;
+import com.fixhomi.auth.exception.AuthenticationException;
+import com.fixhomi.auth.exception.TooManyRequestsException;
+import com.fixhomi.auth.exception.VerificationException;
 import com.fixhomi.auth.service.EmailVerificationService;
 import com.fixhomi.auth.service.PasswordResetService;
 import com.fixhomi.auth.service.PhoneVerificationService;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 /**
  * REST controller for identity verification and password reset operations.
@@ -29,6 +36,8 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/auth")
 public class VerificationController {
+
+    private static final Logger logger = LoggerFactory.getLogger(VerificationController.class);
 
     @Autowired
     private PhoneVerificationService phoneVerificationService;
@@ -374,13 +383,38 @@ public class VerificationController {
      * Sends OTP to the phone number associated with the account.
      */
     @PostMapping("/forgot-password/phone")
-    public ResponseEntity<VerificationResponse> forgotPasswordPhone(
+    public ResponseEntity<?> forgotPasswordPhone(
             @Valid @RequestBody ForgotPasswordPhoneRequest request) {
-        
-        String maskedPhone = passwordResetService.requestPasswordResetOtp(request.getPhoneNumber());
-        
-        return ResponseEntity.ok(VerificationResponse.success(
-                "OTP sent successfully", maskedPhone));
+
+        try {
+            String maskedPhone = passwordResetService.requestPasswordResetOtp(request.getPhoneNumber());
+
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "OTP sent successfully to " + maskedPhone,
+                "maskedPhone", maskedPhone,
+                "expiresInMinutes", 5
+            ));
+        } catch (AuthenticationException e) {
+            logger.warn("Forgot password phone rejected: {}", e.getMessage());
+            return ResponseEntity.status(404).body(Map.of(
+                "success", false,
+                "code", "USER_NOT_FOUND",
+                "message", e.getMessage()
+            ));
+        } catch (VerificationException e) {
+            return ResponseEntity.status(429).body(Map.of(
+                "success", false,
+                "code", "TOO_MANY_REQUESTS",
+                "message", e.getMessage()
+            ));
+        } catch (Exception e) {
+            logger.error("Error sending forgot password OTP: {}", e.getMessage());
+            return ResponseEntity.internalServerError().body(Map.of(
+                "success", false,
+                "message", e.getMessage() != null ? e.getMessage() : "An error occurred while sending OTP"
+            ));
+        }
     }
 
     /**
@@ -391,16 +425,40 @@ public class VerificationController {
      * Verifies OTP and resets password in one step.
      */
     @PostMapping("/forgot-password/phone/verify")
-    public ResponseEntity<VerificationResponse> verifyOtpAndResetPassword(
+    public ResponseEntity<?> verifyOtpAndResetPassword(
             @Valid @RequestBody VerifyOtpAndResetPasswordRequest request) {
-        
-        passwordResetService.verifyOtpAndResetPassword(
-                request.getPhoneNumber(),
-                request.getOtp(),
-                request.getNewPassword()
-        );
-        
-        return ResponseEntity.ok(VerificationResponse.success(
-                "Password reset successfully. Please login with your new password."));
+
+        try {
+            passwordResetService.verifyOtpAndResetPassword(
+                    request.getPhoneNumber(),
+                    request.getOtp(),
+                    request.getNewPassword()
+            );
+
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Password reset successfully. Please login with your new password."
+            ));
+        } catch (VerificationException e) {
+            logger.warn("Forgot password OTP verification failed: {}", e.getMessage());
+            String msg = e.getMessage();
+            String code = "INVALID_OTP";
+            if (msg != null) {
+                if (msg.contains("expired")) code = "OTP_EXPIRED";
+                else if (msg.contains("Maximum")) code = "MAX_ATTEMPTS_EXCEEDED";
+                else if (msg.contains("No pending")) code = "OTP_EXPIRED";
+            }
+            return ResponseEntity.badRequest().body(Map.of(
+                "success", false,
+                "code", code,
+                "message", msg != null ? msg : "OTP verification failed"
+            ));
+        } catch (Exception e) {
+            logger.error("Error verifying forgot password OTP: {}", e.getMessage());
+            return ResponseEntity.internalServerError().body(Map.of(
+                "success", false,
+                "message", "An error occurred during verification"
+            ));
+        }
     }
 }
