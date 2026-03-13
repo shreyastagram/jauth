@@ -53,10 +53,10 @@ services:
       
       # Notification Provider Settings
       - key: EMAIL_PROVIDER
-        value: stub  # Change to 'brevo' when ready for production email
+        value: brevo
       
       - key: SMS_PROVIDER
-        value: stub  # Change to 'msg91' when ready for production SMS
+        value: msg91
 
       # Brevo Email Service (optional - only needed if EMAIL_PROVIDER=brevo)
       - key: BREVO_API_KEY
