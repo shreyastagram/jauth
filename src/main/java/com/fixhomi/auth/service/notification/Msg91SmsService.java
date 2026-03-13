@@ -6,16 +6,11 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.*;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
-import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
-
-import jakarta.annotation.PostConstruct;
 
 /**
  * MSG91 Flow API implementation of SmsService.
@@ -24,45 +19,39 @@ import jakarta.annotation.PostConstruct;
  * OTP generation and verification is handled locally by the calling service.
  * MSG91 is only responsible for SMS delivery.
  *
- * Active when: fixhomi.notification.sms.provider=msg91
+ * Bean is created by SmsServiceConfig when fixhomi.notification.sms.provider=msg91.
  *
  * Required environment variables:
  * - MSG91_AUTH_KEY: Your MSG91 auth key
  * - MSG91_TEMPLATE_ID: Template ID with ##OTP## placeholder
  */
-@Service
-@ConditionalOnProperty(name = "fixhomi.notification.sms.provider", havingValue = "msg91")
 public class Msg91SmsService implements SmsService {
 
     private static final Logger logger = LoggerFactory.getLogger(Msg91SmsService.class);
 
     private static final String MSG91_FLOW_URL = "https://control.msg91.com/api/v5/flow";
 
-    @Value("${fixhomi.notification.sms.msg91.auth-key:}")
-    private String authKey;
-
-    @Value("${fixhomi.notification.sms.msg91.template-id:}")
-    private String templateId;
-
-    @Value("${fixhomi.notification.sms.msg91.verification-template-id:}")
-    private String verificationTemplateId;
-
-    @Value("${fixhomi.notification.sms.msg91.delete-template-id:}")
-    private String deleteTemplateId;
-
+    private final String authKey;
+    private final String templateId;
+    private final String verificationTemplateId;
+    private final String deleteTemplateId;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
 
-    public Msg91SmsService() {
+    public Msg91SmsService(String authKey, String templateId,
+                           String verificationTemplateId, String deleteTemplateId) {
+        this.authKey = authKey;
+        this.templateId = templateId;
+        this.verificationTemplateId = verificationTemplateId;
+        this.deleteTemplateId = deleteTemplateId;
+
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(5000);
         factory.setReadTimeout(10000);
         this.restTemplate = new RestTemplate(factory);
         this.objectMapper = new ObjectMapper();
-    }
 
-    @PostConstruct
-    public void validateConfiguration() {
+        // Validate on construction
         if (authKey == null || authKey.isBlank()) {
             logger.error("MSG91_AUTH_KEY is not configured!");
         }

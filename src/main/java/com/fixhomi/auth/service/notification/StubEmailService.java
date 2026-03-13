@@ -2,17 +2,13 @@ package com.fixhomi.auth.service.notification;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Service;
 
 /**
  * Stub implementation of EmailService for development/testing.
  * Logs emails instead of sending them.
- * 
- * Active when: fixhomi.notification.email.provider=stub (or not set)
+ *
+ * Bean is created by EmailServiceConfig when provider is not 'brevo'.
  */
-@Service
-@ConditionalOnProperty(name = "fixhomi.notification.email.provider", havingValue = "stub", matchIfMissing = true)
 public class StubEmailService implements EmailService {
 
     private static final Logger logger = LoggerFactory.getLogger(StubEmailService.class);

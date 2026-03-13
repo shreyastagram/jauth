@@ -2,43 +2,35 @@ package com.fixhomi.auth.service.notification;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.*;
-import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 /**
  * Brevo (formerly Sendinblue) implementation of EmailService.
  * Uses Brevo's SMTP API for sending transactional emails.
- * 
- * Active when: fixhomi.notification.email.provider=brevo
- * 
+ *
+ * Bean is created by EmailServiceConfig when fixhomi.notification.email.provider=brevo.
+ *
  * Required environment variables:
  * - BREVO_API_KEY: Your Brevo API key (v3)
  * - BREVO_SENDER_EMAIL: Verified sender email address
  * - BREVO_SENDER_NAME: Sender name (e.g., "FixHomi")
  */
-@Service
-@ConditionalOnProperty(name = "fixhomi.notification.email.provider", havingValue = "brevo")
 public class BrevoEmailService implements EmailService {
 
     private static final Logger logger = LoggerFactory.getLogger(BrevoEmailService.class);
-    
+
     private static final String BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 
-    @Value("${fixhomi.notification.email.brevo.api-key:}")
-    private String apiKey;
-
-    @Value("${fixhomi.notification.email.brevo.sender-email:noreply@fixhomi.com}")
-    private String senderEmail;
-
-    @Value("${fixhomi.notification.email.brevo.sender-name:FixHomi}")
-    private String senderName;
-
+    private final String apiKey;
+    private final String senderEmail;
+    private final String senderName;
     private final RestTemplate restTemplate;
 
-    public BrevoEmailService() {
+    public BrevoEmailService(String apiKey, String senderEmail, String senderName) {
+        this.apiKey = apiKey;
+        this.senderEmail = senderEmail;
+        this.senderName = senderName;
         this.restTemplate = new RestTemplate();
     }
 

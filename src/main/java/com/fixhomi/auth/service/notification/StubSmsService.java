@@ -2,17 +2,13 @@ package com.fixhomi.auth.service.notification;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Service;
 
 /**
  * Stub implementation of SmsService for development/testing.
  * Logs OTP messages to console instead of sending real SMS.
  *
- * Active when: fixhomi.notification.sms.provider=stub (or not set)
+ * Bean is created by SmsServiceConfig when provider is not 'msg91'.
  */
-@Service
-@ConditionalOnProperty(name = "fixhomi.notification.sms.provider", havingValue = "stub", matchIfMissing = true)
 public class StubSmsService implements SmsService {
 
     private static final Logger logger = LoggerFactory.getLogger(StubSmsService.class);
