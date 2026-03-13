@@ -137,17 +137,8 @@ fixhomi:
     
     # SMS service configuration
     sms:
-      # Provider: 'stub' for development, 'twilio' or 'msg91' for production
+      # Provider: 'stub' for development, 'msg91' for production
       provider: ${SMS_PROVIDER:stub}
-      twilio:
-        account-sid: ${TWILIO_ACCOUNT_SID:}
-        auth-token: ${TWILIO_AUTH_TOKEN:}
-        phone-number: ${TWILIO_PHONE_NUMBER:}
-        verify-service-sid: ${TWILIO_VERIFY_SERVICE_SID:}
-        # Trial mode: logs helpful info when using Twilio trial account
-        trial-mode: ${TWILIO_TRIAL_MODE:true}
-        # Your verified phone number (only this receives OTPs in trial mode)
-        verified-phone: ${TWILIO_VERIFIED_PHONE:}
       msg91:
         auth-key: ${MSG91_AUTH_KEY:}
         template-id: ${MSG91_TEMPLATE_ID:}

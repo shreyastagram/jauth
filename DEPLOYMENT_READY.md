@@ -212,7 +212,7 @@ No local setup needed:
 2. **Database Variables:** Use `DATABASE_USERNAME` (not `DATABASE_USER`)
 
 3. **Provider Defaults:** `EMAIL_PROVIDER=stub` and `SMS_PROVIDER=stub` are safe
-   - Change to `brevo`/`twilio` when you have credentials
+   - Change to `brevo`/`msg91` when you have credentials
 
 4. **OAuth Optional:** App works without OAuth, set when needed
 

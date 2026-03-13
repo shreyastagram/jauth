@@ -140,12 +140,8 @@ fixhomi:
         sender-email: ${BREVO_SENDER_EMAIL:noreply@fixhomi.com}
         sender-name: ${BREVO_SENDER_NAME:FixHomi}
     sms:
-      # Use 'stub' for testing, 'twilio' or 'msg91' for production SMS
+      # Use 'stub' for testing, 'msg91' for production SMS
       provider: ${SMS_PROVIDER:stub}
-      twilio:
-        account-sid: ${TWILIO_ACCOUNT_SID:}
-        auth-token: ${TWILIO_AUTH_TOKEN:}
-        phone-number: ${TWILIO_PHONE_NUMBER:}
       msg91:
         auth-key: ${MSG91_AUTH_KEY:}
         template-id: ${MSG91_TEMPLATE_ID:}

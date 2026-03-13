@@ -55,23 +55,23 @@ openssl rand -base64 64
 
 ---
 
-### 🟡 OPTIONAL - SMS Notifications (Twilio)
+### 🟡 OPTIONAL - SMS Notifications (MSG91)
 
 **Choose your provider:**
 - `stub` = Development mode (SMS logged, not sent)
-- `twilio` = Production SMS via Twilio
+- `msg91` = Production SMS via MSG91
 
 | Variable | Source | Default | Description |
 |----------|--------|---------|-------------|
-| `SMS_PROVIDER` | [application.yaml](src/main/resources/application.yaml#L115) | `stub` | SMS provider: `stub` or `twilio` |
-| `TWILIO_ACCOUNT_SID` | [application.yaml](src/main/resources/application.yaml#L117) | - | Twilio Account SID |
-| `TWILIO_AUTH_TOKEN` | [application.yaml](src/main/resources/application.yaml#L118) | - | Twilio Auth Token |
-| `TWILIO_PHONE_NUMBER` | [application.yaml](src/main/resources/application.yaml#L119) | - | Twilio phone number (e.g., +1234567890) |
+| `SMS_PROVIDER` | [application.yaml](src/main/resources/application.yaml#L115) | `stub` | SMS provider: `stub` or `msg91` |
+| `MSG91_AUTH_KEY` | [application.yaml](src/main/resources/application.yaml#L117) | - | MSG91 Auth Key |
+| `MSG91_TEMPLATE_ID` | [application.yaml](src/main/resources/application.yaml#L118) | - | MSG91 SMS Template ID |
+| `MSG91_SENDER_ID` | [application.yaml](src/main/resources/application.yaml#L119) | - | MSG91 Sender ID |
 
-**Get Twilio Credentials:**
-1. Sign up at https://www.twilio.com/
-2. Get free trial credits
-3. Copy SID and Token from Console Dashboard
+**Get MSG91 Credentials:**
+1. Sign up at https://msg91.com/
+2. Get your Auth Key from the dashboard
+3. Create an SMS template and note the Template ID
 
 ---
 
@@ -151,11 +151,11 @@ BREVO_API_KEY=xkeysib-xxx
 BREVO_SENDER_EMAIL=noreply@fixhomi.com
 BREVO_SENDER_NAME=FixHomi
 
-# SMS (Twilio)
-SMS_PROVIDER=twilio
-TWILIO_ACCOUNT_SID=ACxxxx
-TWILIO_AUTH_TOKEN=xxxx
-TWILIO_PHONE_NUMBER=+1234567890
+# SMS (MSG91)
+SMS_PROVIDER=msg91
+MSG91_AUTH_KEY=your-auth-key
+MSG91_TEMPLATE_ID=your-template-id
+MSG91_SENDER_ID=your-sender-id
 
 # OAuth (Google)
 GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
@@ -180,7 +180,7 @@ Based on your source files:
 | Database | [application-prod.yaml](src/main/resources/application-prod.yaml#L14-L29) | `DATABASE_*` (5 vars) | ✅ **Fixed** |
 | JWT | [application.yaml](src/main/resources/application.yaml#L54-L60) | `JWT_SECRET`, `JWT_EXPIRATION_MS` | ✅ **Correct** |
 | Email | [application.yaml](src/main/resources/application.yaml#L105-L111) | `EMAIL_PROVIDER`, `BREVO_*` | ✅ **Correct** |
-| SMS | [application.yaml](src/main/resources/application.yaml#L113-L119) | `SMS_PROVIDER`, `TWILIO_*` | ✅ **Correct** |
+| SMS | [application.yaml](src/main/resources/application.yaml#L113-L119) | `SMS_PROVIDER`, `MSG91_*` | ✅ **Correct** |
 | OAuth Web | [application-prod.yaml](src/main/resources/application-prod.yaml#L47-L66) | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | ✅ **Correct** |
 | OAuth Mobile | [application.yaml](src/main/resources/application.yaml#L141-L144) | `GOOGLE_IOS_CLIENT_ID`, `GOOGLE_ANDROID_CLIENT_ID` | ✅ **Added** |
 | Actuator | [pom.xml](pom.xml#L107-L110), [application.yaml](src/main/resources/application.yaml#L156-L169) | - | ✅ **Health check ready** |

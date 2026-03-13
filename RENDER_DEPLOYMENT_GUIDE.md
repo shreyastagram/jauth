@@ -6,7 +6,7 @@ This guide walks you through deploying the FixHomi Auth Service to Render using 
 
 1. **GitHub Account** - Your code should be in a GitHub repository
 2. **Render Account** - Sign up at [render.com](https://render.com) (free tier available)
-3. **Environment Variables Ready** - Have your email, Twilio, and OAuth credentials ready
+3. **Environment Variables Ready** - Have your email, MSG91, and OAuth credentials ready
 
 ## 🎯 Quick Deploy Steps
 
@@ -38,9 +38,9 @@ This guide walks you through deploying the FixHomi Auth Service to Render using 
      ```
      MAIL_USERNAME=your-email@gmail.com
      MAIL_PASSWORD=your-app-password
-     TWILIO_ACCOUNT_SID=your-sid
-     TWILIO_AUTH_TOKEN=your-token
-     TWILIO_PHONE_NUMBER=+1234567890
+     MSG91_AUTH_KEY=your-auth-key
+     MSG91_TEMPLATE_ID=your-template-id
+     MSG91_SENDER_ID=your-sender-id
      OAUTH2_GOOGLE_CLIENT_ID=your-client-id
      OAUTH2_GOOGLE_CLIENT_SECRET=your-client-secret
      ```
@@ -120,19 +120,19 @@ BREVO_SENDER_NAME=FixHomi
 
 **For development/testing:** Set `EMAIL_PROVIDER=stub` (emails logged, not sent)
 
-SMS_PROVIDER=twilio
-TWILIO_ACCOUNT_SID=your-account-sid
-TWILIO_AUTH_TOKEN=your-auth-token
-TWILIO_PHONE_NUMBER=+1234567890
+SMS_PROVIDER=msg91
+MSG91_AUTH_KEY=your-auth-key
+MSG91_TEMPLATE_ID=your-template-id
+MSG91_SENDER_ID=your-sender-id
 ```
 
-**Twilio Setup:**
-- Sign up at https://www.twilio.com/
-- Get free trial credits ($15 credit)
-- Get credentials from Twilio Console
+**MSG91 Setup:**
+- Sign up at https://msg91.com/
+- Get your Auth Key from the dashboard
+- Create an SMS template and note the Template ID
+- Set up a Sender ID
 
 **For development/testing:** Set `SMS_PROVIDER=stub` (SMS logged, not sent)
-- Get free trial credits
 
 #### Web OAuth
 ```env
@@ -223,7 +223,7 @@ Render will:
 ### Email/SMS Not Working
 - Verify credentials are correct
 - Check Gmail allows "Less secure apps" or use App Password
-- Verify Twilio account is active and has credits
+- Verify MSG91 account is active and has credits
 
 ## 🎓 For Other Developers
 

@@ -67,7 +67,7 @@ public class OpenApiConfig {
                         - **Google OAuth2** - Web-based Google Sign-In
                         - **Mobile Google Sign-In** - Token-based Google authentication for React Native/mobile apps
                         - **JWT Tokens** - Stateless authentication with access and refresh tokens
-                        - **Phone Verification** - OTP-based phone number verification (Twilio)
+                        - **Phone Verification** - OTP-based phone number verification (MSG91)
                         - **Email Verification** - Email verification with secure tokens
                         - **Password Reset** - Secure password recovery flow
                         - **Role-based Access Control** - USER, SERVICE_PROVIDER, ADMIN, IT_ADMIN roles

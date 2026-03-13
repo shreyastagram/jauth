@@ -56,26 +56,26 @@ services:
         value: stub  # Change to 'brevo' when ready for production email
       
       - key: SMS_PROVIDER
-        value: stub  # Change to 'twilio' when ready for production SMS
-      
+        value: stub  # Change to 'msg91' when ready for production SMS
+
       # Brevo Email Service (optional - only needed if EMAIL_PROVIDER=brevo)
       - key: BREVO_API_KEY
         sync: false  # Set manually when using Brevo
-      
+
       - key: BREVO_SENDER_EMAIL
         value: noreply@fixhomi.com
-      
+
       - key: BREVO_SENDER_NAME
         value: FixHomi
-      
-      # Twilio SMS configuration (only needed if SMS_PROVIDER=twilio)
-      - key: TWILIO_ACCOUNT_SID
+
+      # MSG91 SMS configuration (only needed if SMS_PROVIDER=msg91)
+      - key: MSG91_AUTH_KEY
         sync: false  # Set manually in Render dashboard
-      
-      - key: TWILIO_AUTH_TOKEN
+
+      - key: MSG91_TEMPLATE_ID
         sync: false  # Set manually in Render dashboard
-      
-      - key: TWILIO_PHONE_NUMBER
+
+      - key: MSG91_SENDER_ID
         sync: false  # Set manually in Render dashboard
       
       # OAuth2 (Google Web) - Set manually in Render dashboard

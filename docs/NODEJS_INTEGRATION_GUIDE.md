@@ -934,7 +934,7 @@ Authorization: Bearer <access_token>
 | 400 | Invalid Phone | Invalid phone number format |
 | 429 | Too Many Requests | Rate limit exceeded (wait before retry) |
 
-**Note:** In development, OTP is logged to console. In production, integrates with Twilio.
+**Note:** In development, OTP is logged to console. In production, integrates with MSG91.
 
 ---
 

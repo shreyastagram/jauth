@@ -37,10 +37,10 @@ SMS_PROVIDER=stub
 ```
 EMAIL_PROVIDER=brevo
 BREVO_API_KEY=xkeysib-your-key
-SMS_PROVIDER=twilio
-TWILIO_ACCOUNT_SID=your-sid
-TWILIO_AUTH_TOKEN=your-token
-TWILIO_PHONE_NUMBER=+1234567890
+SMS_PROVIDER=msg91
+MSG91_AUTH_KEY=your-auth-key
+MSG91_TEMPLATE_ID=your-template-id
+MSG91_SENDER_ID=your-sender-id
 GOOGLE_CLIENT_ID=your-web-client-id
 GOOGLE_CLIENT_SECRET=your-secret
 GOOGLE_IOS_CLIENT_ID=your-ios-client-id
