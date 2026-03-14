@@ -4,47 +4,50 @@ import com.fixhomi.auth.dto.LoginRequest;
 import com.fixhomi.auth.dto.LoginResponse;
 import com.fixhomi.auth.dto.PhoneLoginRequest;
 import com.fixhomi.auth.dto.RegisterRequest;
+import com.fixhomi.auth.entity.LoginLockout;
 import com.fixhomi.auth.entity.RefreshToken;
 import com.fixhomi.auth.entity.Role;
 import com.fixhomi.auth.entity.User;
 import com.fixhomi.auth.exception.AuthenticationException;
 import com.fixhomi.auth.exception.DuplicateResourceException;
 import com.fixhomi.auth.exception.InvalidRoleException;
+import com.fixhomi.auth.exception.TooManyRequestsException;
+import com.fixhomi.auth.repository.LoginLockoutRepository;
 import com.fixhomi.auth.repository.UserRepository;
 import com.fixhomi.auth.security.JwtService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.List;
 import org.springframework.scheduling.annotation.Scheduled;
 
 /**
  * Service for handling authentication operations.
+ * Uses database-backed lockout tracking (survives server restarts)
+ * with unified per-user lockout across all login methods.
  */
 @Service
 public class AuthService {
 
     private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
 
-    // Per-email failed login attempt tracking (brute force protection)
-    private static final int MAX_FAILED_ATTEMPTS = 5;
-    private static final long LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
-    private static final ConcurrentHashMap<String, FailedLoginTracker> failedAttempts = new ConcurrentHashMap<>();
+    @Value("${fixhomi.auth.lockout.max-attempts:5}")
+    private int maxFailedAttempts;
 
-    private static class FailedLoginTracker {
-        final AtomicInteger count = new AtomicInteger(0);
-        final AtomicLong lockedUntil = new AtomicLong(0); // epoch ms, 0 = not locked
-    }
+    @Value("${fixhomi.auth.lockout.duration-minutes:15}")
+    private long lockoutDurationMinutes;
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private LoginLockoutRepository lockoutRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -57,9 +60,6 @@ public class AuthService {
 
     /**
      * Authenticate user and generate JWT token.
-     *
-     * @param loginRequest login credentials
-     * @return login response with JWT token
      */
     @Transactional
     public LoginResponse login(LoginRequest loginRequest) {
@@ -72,9 +72,12 @@ public class AuthService {
         // Find user by email
         User user = userRepository.findByEmail(loginRequest.getEmail())
                 .orElseThrow(() -> {
-                    recordFailedAttempt(email);
+                    recordFailedAttempt(email, null);
                     return new AuthenticationException("Invalid email or password");
                 });
+
+        // Check unified lockout by userId (across all login methods)
+        checkUnifiedLockout(user.getId());
 
         // Check if user is active
         if (!user.getIsActive()) {
@@ -83,12 +86,12 @@ public class AuthService {
 
         // Verify password
         if (!passwordEncoder.matches(loginRequest.getPassword(), user.getPasswordHash())) {
-            recordFailedAttempt(email);
+            recordFailedAttempt(email, user.getId());
             throw new AuthenticationException("Invalid email or password");
         }
 
-        // Successful login — clear failed attempts
-        failedAttempts.remove(email);
+        // Successful login — clear failed attempts for this identifier
+        clearLockout(email);
 
         // Update last login timestamp
         user.setLastLoginAt(LocalDateTime.now());
@@ -123,9 +126,6 @@ public class AuthService {
     /**
      * Register a new user.
      * Public registration only allows USER and SERVICE_PROVIDER roles.
-     *
-     * @param registerRequest registration details
-     * @return login response with JWT token
      */
     @Transactional
     public LoginResponse register(RegisterRequest registerRequest) {
@@ -135,7 +135,7 @@ public class AuthService {
         Role requestedRole = registerRequest.getRole();
         if (requestedRole != Role.USER && requestedRole != Role.SERVICE_PROVIDER) {
             logger.warn("Attempted registration with restricted role: {}", requestedRole);
-            throw new InvalidRoleException(requestedRole.name(), 
+            throw new InvalidRoleException(requestedRole.name(),
                     "Public registration only allows USER or SERVICE_PROVIDER roles");
         }
 
@@ -145,7 +145,7 @@ public class AuthService {
         }
 
         // Check if phone number already exists (if provided)
-        if (registerRequest.getPhoneNumber() != null && 
+        if (registerRequest.getPhoneNumber() != null &&
             !registerRequest.getPhoneNumber().isBlank() &&
             userRepository.existsByPhoneNumber(registerRequest.getPhoneNumber())) {
             throw new DuplicateResourceException("User", "phoneNumber", registerRequest.getPhoneNumber());
@@ -193,9 +193,6 @@ public class AuthService {
 
     /**
      * Authenticate user with phone number and password.
-     *
-     * @param phoneLoginRequest login credentials with phone number
-     * @return login response with JWT token
      */
     @Transactional
     public LoginResponse loginWithPhone(PhoneLoginRequest phoneLoginRequest) {
@@ -208,9 +205,12 @@ public class AuthService {
         // Find user by phone number
         User user = userRepository.findByPhoneNumber(phone)
                 .orElseThrow(() -> {
-                    recordFailedAttempt(phone);
+                    recordFailedAttempt(phone, null);
                     return new AuthenticationException("Invalid phone number or password");
                 });
+
+        // Check unified lockout by userId (across all login methods)
+        checkUnifiedLockout(user.getId());
 
         // Check if user is active
         if (!user.getIsActive()) {
@@ -219,12 +219,12 @@ public class AuthService {
 
         // Verify password
         if (!passwordEncoder.matches(phoneLoginRequest.getPassword(), user.getPasswordHash())) {
-            recordFailedAttempt(phone);
+            recordFailedAttempt(phone, user.getId());
             throw new AuthenticationException("Invalid phone number or password");
         }
 
         // Successful login — clear failed attempts
-        failedAttempts.remove(phone);
+        clearLockout(phone);
 
         // Update last login timestamp
         user.setLastLoginAt(LocalDateTime.now());
@@ -240,7 +240,7 @@ public class AuthService {
         // Generate refresh token
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
 
-        logger.info("User logged in via phone successfully: {} (role: {})", 
+        logger.info("User logged in via phone successfully: {} (role: {})",
                 maskPhoneNumber(phoneLoginRequest.getPhoneNumber()), user.getRole());
 
         return new LoginResponse(
@@ -270,54 +270,78 @@ public class AuthService {
 
     /**
      * Check if an account (by email or phone) is locked out.
+     * Uses database for persistent lockout tracking.
      */
-    private void checkAccountLockout(String key) {
-        FailedLoginTracker tracker = failedAttempts.get(key);
-        if (tracker != null) {
-            long lockedUntil = tracker.lockedUntil.get();
-            if (lockedUntil > System.currentTimeMillis()) {
-                long remainingSeconds = (lockedUntil - System.currentTimeMillis()) / 1000;
-                logger.warn("Login blocked for locked account: {} ({}s remaining)", key, remainingSeconds);
-                throw new com.fixhomi.auth.exception.TooManyRequestsException(
+    private void checkAccountLockout(String identifier) {
+        lockoutRepository.findByIdentifier(identifier).ifPresent(lockout -> {
+            if (lockout.isLocked()) {
+                long remainingSeconds = java.time.Duration.between(
+                    LocalDateTime.now(), lockout.getLockedUntil()).getSeconds();
+                logger.warn("Login blocked for locked account: {} ({}s remaining)", identifier, remainingSeconds);
+                throw new TooManyRequestsException(
                     "Too many failed attempts. Please try again in " + (remainingSeconds / 60 + 1) + " minutes.");
             }
+        });
+    }
+
+    /**
+     * Check unified lockout across all login methods for a user.
+     * If any identifier for this userId is locked, block login on all methods.
+     */
+    private void checkUnifiedLockout(Long userId) {
+        if (userId == null) return;
+        List<LoginLockout> activeLocks = lockoutRepository.findActiveLocksForUser(userId, LocalDateTime.now());
+        if (!activeLocks.isEmpty()) {
+            LoginLockout lock = activeLocks.get(0);
+            long remainingSeconds = java.time.Duration.between(
+                LocalDateTime.now(), lock.getLockedUntil()).getSeconds();
+            logger.warn("Login blocked by unified lockout for userId: {} ({}s remaining)", userId, remainingSeconds);
+            throw new TooManyRequestsException(
+                "Too many failed attempts. Please try again in " + (remainingSeconds / 60 + 1) + " minutes.");
         }
     }
 
     /**
-     * Record a failed login attempt. Locks account after MAX_FAILED_ATTEMPTS.
+     * Record a failed login attempt. Locks account after max attempts.
+     * Persisted to database for durability across restarts.
      */
-    private void recordFailedAttempt(String key) {
-        FailedLoginTracker tracker = failedAttempts.computeIfAbsent(key, k -> new FailedLoginTracker());
+    private void recordFailedAttempt(String identifier, Long userId) {
+        LoginLockout lockout = lockoutRepository.findByIdentifier(identifier)
+                .orElse(new LoginLockout(identifier));
+
         // Reset if previous lockout has expired
-        long lockedUntil = tracker.lockedUntil.get();
-        if (lockedUntil > 0 && lockedUntil < System.currentTimeMillis()) {
-            tracker.count.set(0);
-            tracker.lockedUntil.set(0);
+        if (lockout.getLockedUntil() != null && !lockout.isLocked()) {
+            lockout.resetAttempts();
         }
-        int newCount = tracker.count.incrementAndGet();
-        if (newCount >= MAX_FAILED_ATTEMPTS) {
-            tracker.lockedUntil.set(System.currentTimeMillis() + LOCKOUT_DURATION_MS);
-            logger.warn("Account locked due to {} failed login attempts: {}", newCount, key);
+
+        lockout.setUserId(userId);
+        lockout.incrementAttempts(maxFailedAttempts, lockoutDurationMinutes);
+        lockoutRepository.save(lockout);
+
+        if (lockout.isLocked()) {
+            logger.warn("Account locked due to {} failed login attempts: {}",
+                lockout.getFailedAttempts(), identifier);
         }
+    }
+
+    /**
+     * Clear lockout for an identifier after successful login.
+     */
+    private void clearLockout(String identifier) {
+        lockoutRepository.findByIdentifier(identifier).ifPresent(lockout -> {
+            lockout.resetAttempts();
+            lockoutRepository.save(lockout);
+        });
     }
 
     /**
      * Cleanup expired lockout entries every 30 minutes.
-     * Prevents unbounded growth of the failedAttempts map.
      */
     @Scheduled(fixedRate = 1800000) // 30 minutes
+    @Transactional
     public void cleanupExpiredLockouts() {
-        long now = System.currentTimeMillis();
-        int sizeBefore = failedAttempts.size();
-        failedAttempts.entrySet().removeIf(entry -> {
-            FailedLoginTracker tracker = entry.getValue();
-            long lockedUntil = tracker.lockedUntil.get();
-            // Remove if lockout has expired or if there's no lockout and count is stale
-            return (lockedUntil > 0 && lockedUntil < now) ||
-                   (lockedUntil == 0 && tracker.count.get() < MAX_FAILED_ATTEMPTS);
-        });
-        int removed = sizeBefore - failedAttempts.size();
+        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(lockoutDurationMinutes * 2);
+        int removed = lockoutRepository.deleteExpiredLockouts(cutoff);
         if (removed > 0) {
             logger.info("Cleaned up {} expired login lockout entries", removed);
         }

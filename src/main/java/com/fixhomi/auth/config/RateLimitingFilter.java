@@ -99,7 +99,8 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         return path.contains("/login") ||
                path.contains("/register") ||
                path.contains("/oauth2/google") ||
-               path.contains("/token/validate");
+               path.contains("/token/validate") ||
+               path.contains("/refresh");
     }
 
     private boolean isOtpEndpoint(String path) {

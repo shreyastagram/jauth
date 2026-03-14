@@ -255,8 +255,7 @@ public class PasswordResetService {
         // Verify OTP
         if (!java.security.MessageDigest.isEqual(otpEntry.getOtp().getBytes(java.nio.charset.StandardCharsets.UTF_8), otp.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
             passwordResetOtpRepository.save(otpEntry);
-            int remainingAttempts = maxAttempts - currentAttempts;
-            throw new VerificationException("Invalid OTP. " + remainingAttempts + " attempt(s) remaining.");
+            throw new VerificationException("Invalid OTP. Please check and try again.");
         }
 
         // OTP verified — mark as used
@@ -276,6 +275,115 @@ public class PasswordResetService {
 
         emailService.sendPasswordChangedNotification(user.getEmail(), user.getFullName());
         logger.info("OTP password reset successful for phone: {}", maskPhoneNumber(normalizedPhone));
+    }
+
+    // ==================== EMAIL OTP-BASED PASSWORD RESET ====================
+
+    /**
+     * Request password reset via email OTP.
+     * OTP is generated locally and sent via email.
+     * Always returns silently to prevent email enumeration.
+     */
+    @Transactional
+    public void requestPasswordResetEmailOtp(String email) {
+        logger.debug("Password reset email OTP requested for: {}", maskEmail(email));
+
+        String normalizedEmail = email.trim().toLowerCase();
+
+        // Rate limiting
+        long recentRequests = passwordResetOtpRepository.countRecentEmailOtpRequests(
+                normalizedEmail, LocalDateTime.now().minusMinutes(rateLimitMinutes));
+        if (recentRequests >= otpRateLimitMaxRequests) {
+            logger.warn("Rate limit exceeded for email OTP password reset: {}", maskEmail(normalizedEmail));
+            return;
+        }
+
+        Optional<User> userOptional = userRepository.findByEmail(normalizedEmail);
+        if (userOptional.isEmpty()) {
+            logger.debug("Password reset email OTP for non-existent email: {}", maskEmail(normalizedEmail));
+            return;
+        }
+
+        User user = userOptional.get();
+
+        if (user.getPasswordHash() == null || user.getPasswordHash().isBlank()) {
+            logger.debug("Password reset email OTP for OAuth-only user: {}", maskEmail(normalizedEmail));
+            return;
+        }
+
+        // Invalidate old OTPs for this email
+        passwordResetOtpRepository.invalidateAllOtpsForEmail(normalizedEmail);
+
+        // Generate OTP locally
+        String otp = generateOtp();
+        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(otpExpirationMinutes);
+
+        // Save to database
+        PasswordResetOtp resetOtp = PasswordResetOtp.forEmail(user.getId(), normalizedEmail, otp, expiresAt);
+        passwordResetOtpRepository.save(resetOtp);
+
+        // Send via email
+        boolean sent = emailService.sendPasswordResetOtpEmail(normalizedEmail, user.getFullName(), otp);
+        if (!sent) {
+            resetOtp.markAsUsed();
+            passwordResetOtpRepository.save(resetOtp);
+            logger.warn("Failed to send password reset OTP email to: {}", maskEmail(normalizedEmail));
+        } else {
+            logger.info("Password reset OTP email sent to: {}", maskEmail(normalizedEmail));
+        }
+    }
+
+    /**
+     * Verify email OTP and reset password.
+     * OTP is verified locally with timing-safe comparison.
+     */
+    @Transactional
+    public void verifyEmailOtpAndResetPassword(String email, String otp, String newPassword) {
+        String normalizedEmail = email.trim().toLowerCase();
+
+        PasswordResetOtp otpEntry = passwordResetOtpRepository
+                .findLatestValidOtpByEmail(normalizedEmail, LocalDateTime.now())
+                .orElse(null);
+        if (otpEntry == null) {
+            throw new VerificationException("No pending password reset. Please request a new OTP.");
+        }
+
+        if (otpEntry.isExpired()) {
+            otpEntry.markAsUsed();
+            passwordResetOtpRepository.save(otpEntry);
+            throw new VerificationException("OTP has expired. Please request a new one.");
+        }
+
+        otpEntry.incrementAttempts();
+        if (otpEntry.getAttempts() > maxAttempts) {
+            otpEntry.markAsUsed();
+            passwordResetOtpRepository.save(otpEntry);
+            throw new VerificationException("Maximum verification attempts exceeded. Please request a new OTP.");
+        }
+
+        // Timing-safe OTP verification
+        if (!java.security.MessageDigest.isEqual(
+                otpEntry.getOtp().getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                otp.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
+            passwordResetOtpRepository.save(otpEntry);
+            throw new VerificationException("Invalid OTP. Please check and try again.");
+        }
+
+        otpEntry.markAsUsed();
+        passwordResetOtpRepository.save(otpEntry);
+
+        User user = userRepository.findById(otpEntry.getUserId())
+                .orElseThrow(() -> new VerificationException("User not found"));
+
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+
+        int revokedCount = refreshTokenService.revokeAllUserTokens(user.getId());
+        logger.info("Revoked {} refresh tokens after email OTP password reset for user: {}",
+                revokedCount, maskEmail(normalizedEmail));
+
+        emailService.sendPasswordChangedNotification(user.getEmail(), user.getFullName());
+        logger.info("Email OTP password reset successful for: {}", maskEmail(normalizedEmail));
     }
 
     // ==================== HELPER METHODS ====================

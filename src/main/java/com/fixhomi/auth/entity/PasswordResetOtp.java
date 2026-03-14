@@ -8,17 +8,12 @@ import java.time.LocalDateTime;
 
 /**
  * Entity for password reset OTPs.
- * Used when users forget their password and request OTP via phone.
- * 
- * Flow:
- * 1. User enters phone number
- * 2. System sends OTP to phone
- * 3. User enters OTP + new password
- * 4. System verifies OTP and resets password
+ * Supports both phone-based and email-based OTP password reset.
  */
 @Entity
 @Table(name = "password_reset_otps", indexes = {
     @Index(name = "idx_pwd_reset_otp_phone", columnList = "phone_number"),
+    @Index(name = "idx_pwd_reset_otp_email", columnList = "email"),
     @Index(name = "idx_pwd_reset_otp_expires", columnList = "expires_at"),
     @Index(name = "idx_pwd_reset_otp_user", columnList = "user_id")
 })
@@ -32,8 +27,11 @@ public class PasswordResetOtp {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    @Column(name = "phone_number", nullable = false, length = 20)
+    @Column(name = "phone_number", length = 20)
     private String phoneNumber;
+
+    @Column(name = "email", length = 255)
+    private String email;
 
     @Column(nullable = false, length = 10)
     private String otp;
@@ -55,6 +53,7 @@ public class PasswordResetOtp {
     public PasswordResetOtp() {
     }
 
+    /** Constructor for phone-based OTP */
     public PasswordResetOtp(Long userId, String phoneNumber, String otp, LocalDateTime expiresAt) {
         this.userId = userId;
         this.phoneNumber = phoneNumber;
@@ -62,6 +61,18 @@ public class PasswordResetOtp {
         this.expiresAt = expiresAt;
         this.used = false;
         this.attempts = 0;
+    }
+
+    /** Factory method for email-based OTP */
+    public static PasswordResetOtp forEmail(Long userId, String email, String otp, LocalDateTime expiresAt) {
+        PasswordResetOtp instance = new PasswordResetOtp();
+        instance.userId = userId;
+        instance.email = email;
+        instance.otp = otp;
+        instance.expiresAt = expiresAt;
+        instance.used = false;
+        instance.attempts = 0;
+        return instance;
     }
 
     // Helper methods

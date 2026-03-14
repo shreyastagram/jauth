@@ -72,4 +72,17 @@ public interface EmailService {
      * @return true if email was sent successfully
      */
     boolean sendLoginOtp(String toEmail, String fullName, String otp);
+
+    /**
+     * Send OTP for password reset via email.
+     * Default implementation delegates to sendLoginOtp since the delivery mechanism is the same.
+     *
+     * @param toEmail recipient email address
+     * @param fullName recipient's full name
+     * @param otp the one-time password
+     * @return true if email was sent successfully
+     */
+    default boolean sendPasswordResetOtpEmail(String toEmail, String fullName, String otp) {
+        return sendLoginOtp(toEmail, fullName, otp);
+    }
 }

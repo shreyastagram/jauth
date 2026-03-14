@@ -417,10 +417,75 @@ public class VerificationController {
         }
     }
 
+    // ==================== EMAIL OTP-BASED PASSWORD RESET ====================
+
+    /**
+     * Request password reset via email OTP.
+     * POST /api/auth/forgot-password/email
+     *
+     * Public endpoint (no JWT required)
+     * Always returns 200 to prevent email enumeration.
+     */
+    @PostMapping("/forgot-password/email")
+    public ResponseEntity<VerificationResponse> forgotPasswordEmail(
+            @Valid @RequestBody ForgotPasswordRequest request) {
+
+        passwordResetService.requestPasswordResetEmailOtp(request.getEmail());
+
+        // Always return success to prevent email enumeration
+        return ResponseEntity.ok(VerificationResponse.success(
+                "If your email is registered, you will receive a password reset OTP shortly."));
+    }
+
+    /**
+     * Verify email OTP and reset password.
+     * POST /api/auth/forgot-password/email/verify
+     *
+     * Public endpoint (no JWT required)
+     * Verifies OTP and resets password in one step.
+     */
+    @PostMapping("/forgot-password/email/verify")
+    public ResponseEntity<?> verifyEmailOtpAndResetPassword(
+            @Valid @RequestBody VerifyEmailOtpAndResetPasswordRequest request) {
+
+        try {
+            passwordResetService.verifyEmailOtpAndResetPassword(
+                    request.getEmail(),
+                    request.getOtp(),
+                    request.getNewPassword()
+            );
+
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Password reset successfully. Please login with your new password."
+            ));
+        } catch (VerificationException e) {
+            logger.warn("Email OTP password reset verification failed: {}", e.getMessage());
+            String msg = e.getMessage();
+            String code = "INVALID_OTP";
+            if (msg != null) {
+                if (msg.contains("expired")) code = "OTP_EXPIRED";
+                else if (msg.contains("Maximum")) code = "MAX_ATTEMPTS_EXCEEDED";
+                else if (msg.contains("No pending")) code = "OTP_EXPIRED";
+            }
+            return ResponseEntity.badRequest().body(Map.of(
+                "success", false,
+                "code", code,
+                "message", msg != null ? msg : "OTP verification failed"
+            ));
+        } catch (Exception e) {
+            logger.error("Error verifying email OTP password reset: {}", e.getMessage());
+            return ResponseEntity.internalServerError().body(Map.of(
+                "success", false,
+                "message", "An error occurred during verification"
+            ));
+        }
+    }
+
     /**
      * Verify OTP and reset password.
      * POST /api/auth/forgot-password/phone/verify
-     * 
+     *
      * Public endpoint (no JWT required)
      * Verifies OTP and resets password in one step.
      */
