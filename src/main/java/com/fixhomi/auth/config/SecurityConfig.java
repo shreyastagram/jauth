@@ -85,10 +85,13 @@ public class SecurityConfig {
                         "/api/auth/forgot-password",
                         "/api/auth/forgot-password/phone",
                         "/api/auth/forgot-password/phone/verify",
+                        "/api/auth/forgot-password/email",
+                        "/api/auth/forgot-password/email/verify",
                         "/api/auth/reset-password",
                         "/api/auth/reset-password/validate",
                         "/api/auth/email/verify",
                         "/api/auth/oauth2/google/mobile",  // Mobile Google Sign-In
+                        "/api/auth/oauth2/apple/mobile",   // Mobile Apple Sign-In
                         // Passwordless OTP Login endpoints
                         "/api/auth/login/phone/send-otp",
                         "/api/auth/login/phone/verify",
@@ -159,9 +162,19 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         
         // Parse comma-separated allowed origins from environment
-        List<String> origins = Arrays.asList(allowedOrigins.split(","));
+        // Security: Filter out wildcards (*) since allowCredentials(true) is incompatible
+        // with wildcard origins — would allow any origin to send credentialed requests
+        List<String> origins = Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(o -> !o.isEmpty() && !"*".equals(o))
+                .toList();
+
+        if (origins.isEmpty()) {
+            throw new IllegalStateException(
+                "CORS: No valid origins configured. Set fixhomi.cors.allowed-origins to specific origins (not '*').");
+        }
         configuration.setAllowedOrigins(origins);
-        
+
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(Arrays.asList(
             "Authorization", "Content-Type", "Accept", "Origin",

@@ -136,20 +136,12 @@ public class GoogleAuthService {
 
         logger.debug("Google token verified for email: {}", email);
 
-        // Determine requested role for new users
-        Role requestedRole = Role.USER; // Default
-        if (request.getRole() != null && !request.getRole().isBlank()) {
-            try {
-                requestedRole = Role.valueOf(request.getRole());
-                // Only allow USER and SERVICE_PROVIDER for self-registration
-                if (requestedRole != Role.USER && requestedRole != Role.SERVICE_PROVIDER) {
-                    logger.warn("Invalid role requested via Google OAuth: {}, defaulting to USER", request.getRole());
-                    requestedRole = Role.USER;
-                }
-            } catch (IllegalArgumentException e) {
-                logger.warn("Invalid role string: {}, defaulting to USER", request.getRole());
-                requestedRole = Role.USER;
-            }
+        // Security: Always use USER role for Google OAuth registrations.
+        // Role is determined server-side, not from client request, to prevent
+        // privilege escalation via API manipulation.
+        Role requestedRole = Role.USER;
+        if (request.getRole() != null && !request.getRole().isBlank() && !"USER".equals(request.getRole())) {
+            logger.warn("Ignoring client-supplied role '{}' for Google OAuth — forcing USER", request.getRole());
         }
 
         // Determine auth mode: "login", "signup", or null (legacy)

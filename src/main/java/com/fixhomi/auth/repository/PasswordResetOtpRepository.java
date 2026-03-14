@@ -47,6 +47,28 @@ public interface PasswordResetOtpRepository extends JpaRepository<PasswordResetO
     long countRecentOtpRequests(@Param("phoneNumber") String phoneNumber, @Param("since") LocalDateTime since);
 
     /**
+     * Find the latest valid (non-expired, non-used) OTP for an email.
+     */
+    @Query("SELECT p FROM PasswordResetOtp p WHERE p.email = :email " +
+           "AND p.used = false AND p.expiresAt > :now ORDER BY p.createdAt DESC LIMIT 1")
+    Optional<PasswordResetOtp> findLatestValidOtpByEmail(
+            @Param("email") String email,
+            @Param("now") LocalDateTime now);
+
+    /**
+     * Invalidate all existing password reset OTPs for an email.
+     */
+    @Modifying
+    @Query("UPDATE PasswordResetOtp p SET p.used = true WHERE p.email = :email AND p.used = false")
+    int invalidateAllOtpsForEmail(@Param("email") String email);
+
+    /**
+     * Count recent OTP requests by email for rate limiting.
+     */
+    @Query("SELECT COUNT(p) FROM PasswordResetOtp p WHERE p.email = :email AND p.createdAt > :since")
+    long countRecentEmailOtpRequests(@Param("email") String email, @Param("since") LocalDateTime since);
+
+    /**
      * Delete expired OTPs (for cleanup job).
      */
     @Modifying

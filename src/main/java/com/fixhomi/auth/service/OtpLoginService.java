@@ -214,8 +214,7 @@ public class OtpLoginService {
         // Verify OTP
         if (!java.security.MessageDigest.isEqual(otpEntry.getOtp().getBytes(java.nio.charset.StandardCharsets.UTF_8), otpCode.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
             phoneOtpRepository.save(otpEntry);
-            int remainingAttempts = maxAttempts - currentAttempts;
-            throw new VerificationException("Invalid OTP. " + remainingAttempts + " attempt(s) remaining.");
+            throw new VerificationException("Invalid OTP. Please check and try again.");
         }
 
         // OTP verified — mark as verified
@@ -343,8 +342,7 @@ public class OtpLoginService {
 
         if (!java.security.MessageDigest.isEqual(otpEntry.getOtp().getBytes(java.nio.charset.StandardCharsets.UTF_8), otpCode.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
             emailOtpRepository.save(otpEntry);
-            int remainingAttempts = maxAttempts - currentAttempts;
-            throw new VerificationException("Invalid OTP. " + remainingAttempts + " attempt(s) remaining.");
+            throw new VerificationException("Invalid OTP. Please check and try again.");
         }
 
         // OTP verified — mark as verified
