@@ -75,19 +75,59 @@ public class OtpLoginService {
     // ==================== PHONE OTP LOGIN ====================
 
     /**
+     * Normalize phone number and try multiple formats for lookup.
+     * Handles cases where DB stores "9356011874" but frontend sends "+919356011874" or vice versa.
+     */
+    private User findUserByPhoneFlexible(String phoneNumber) {
+        // Try exact match first
+        User user = userRepository.findByPhoneNumber(phoneNumber).orElse(null);
+        if (user != null) return user;
+
+        String digits = phoneNumber.replaceAll("[^0-9]", "");
+
+        // If input has country code (+91 or 91 prefix), try without it (raw 10 digits)
+        if (digits.length() == 12 && digits.startsWith("91")) {
+            String raw10 = digits.substring(2);
+            user = userRepository.findByPhoneNumber(raw10).orElse(null);
+            if (user != null) return user;
+            // Also try with +91 prefix
+            user = userRepository.findByPhoneNumber("+91" + raw10).orElse(null);
+            if (user != null) return user;
+        }
+
+        // If input is raw 10 digits, try with +91 and 91 prefix
+        if (digits.length() == 10) {
+            user = userRepository.findByPhoneNumber("+91" + digits).orElse(null);
+            if (user != null) return user;
+            user = userRepository.findByPhoneNumber("91" + digits).orElse(null);
+            if (user != null) return user;
+        }
+
+        return null;
+    }
+
+    /**
+     * Normalize phone number to a consistent format for OTP storage/lookup.
+     * Returns the phone number as stored in the user record for consistency.
+     */
+    private String getStoredPhoneFormat(User user, String inputPhone) {
+        return user.getPhoneNumber() != null ? user.getPhoneNumber() : inputPhone;
+    }
+
+    /**
      * Send OTP for phone-based login.
      * OTP is generated locally and sent via SMS provider.
      */
     @Transactional
     public String sendPhoneLoginOtp(String phoneNumber) {
-        // Rate limiting
+        // Rate limiting — check with input format
         long recentRequests = phoneOtpRepository.countRecentOtpRequests(phoneNumber, LocalDateTime.now().minusMinutes(rateLimitMinutes));
         if (recentRequests >= rateLimitMaxRequests) {
             throw new TooManyRequestsException("Too many OTP requests. Please wait before trying again.");
         }
 
-        // Find user — reject if not registered
-        User user = userRepository.findByPhoneNumber(phoneNumber).orElse(null);
+        // Find user with flexible phone matching
+        User user = findUserByPhoneFlexible(phoneNumber);
 
         if (user == null) {
             logger.warn("Phone OTP requested for non-existent phone: {}", maskPhoneNumber(phoneNumber));
@@ -98,15 +138,18 @@ public class OtpLoginService {
             throw new AuthenticationException("Your account has been disabled. Please contact support.");
         }
 
+        // Use the phone number as stored in the user record for consistency
+        String storedPhone = getStoredPhoneFormat(user, phoneNumber);
+
         // Invalidate old OTPs
-        phoneOtpRepository.invalidateAllUserOtps(user.getId(), phoneNumber);
+        phoneOtpRepository.invalidateAllUserOtps(user.getId(), storedPhone);
 
         // Generate OTP locally
         String otp = generateOtp();
         LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(otpExpirationMinutes);
 
-        // Save to database
-        PhoneOtp phoneOtp = new PhoneOtp(user.getId(), phoneNumber, otp, expiresAt);
+        // Save to database using stored phone format
+        PhoneOtp phoneOtp = new PhoneOtp(user.getId(), storedPhone, otp, expiresAt);
         phoneOtpRepository.save(phoneOtp);
 
         // Send OTP via SMS provider
@@ -128,9 +171,26 @@ public class OtpLoginService {
      */
     @Transactional
     public LoginResponse verifyPhoneLoginOtp(String phoneNumber, String otpCode) {
-        // Get stored OTP
+        // Try to find the OTP entry — try multiple phone formats since OTP was stored with user's DB format
         PhoneOtp otpEntry = phoneOtpRepository.findLatestValidOtpByPhone(phoneNumber, LocalDateTime.now())
                 .orElse(null);
+
+        // If not found, try alternate phone formats
+        if (otpEntry == null) {
+            String digits = phoneNumber.replaceAll("[^0-9]", "");
+            if (digits.length() == 12 && digits.startsWith("91")) {
+                String raw10 = digits.substring(2);
+                otpEntry = phoneOtpRepository.findLatestValidOtpByPhone(raw10, LocalDateTime.now()).orElse(null);
+                if (otpEntry == null) {
+                    otpEntry = phoneOtpRepository.findLatestValidOtpByPhone("+91" + raw10, LocalDateTime.now()).orElse(null);
+                }
+            } else if (digits.length() == 10) {
+                otpEntry = phoneOtpRepository.findLatestValidOtpByPhone("+91" + digits, LocalDateTime.now()).orElse(null);
+                if (otpEntry == null) {
+                    otpEntry = phoneOtpRepository.findLatestValidOtpByPhone("91" + digits, LocalDateTime.now()).orElse(null);
+                }
+            }
+        }
         if (otpEntry == null) {
             throw new VerificationException("No pending login. Please request a new OTP.");
         }
@@ -198,7 +258,8 @@ public class OtpLoginService {
                 user.getRole(),
                 jwtService.getExpirationTimeInSeconds(),
                 user.getPhoneNumber(),
-                user.getIsPhoneVerified()
+                user.getIsPhoneVerified(),
+                user.getIsEmailVerified()
         );
     }
 
@@ -322,7 +383,8 @@ public class OtpLoginService {
                 user.getRole(),
                 jwtService.getExpirationTimeInSeconds(),
                 user.getPhoneNumber(),
-                user.getIsPhoneVerified()
+                user.getIsPhoneVerified(),
+                user.getIsEmailVerified()
         );
     }
 

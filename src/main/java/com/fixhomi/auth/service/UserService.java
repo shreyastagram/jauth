@@ -401,7 +401,26 @@ public class UserService {
     }
 
     /**
-     * Delete user account by ID (for service-to-service calls).
+     * Check if the authenticated user is authorized to delete the given account.
+     * Allowed if the user is deleting their own account or is an ADMIN.
+     *
+     * @param currentEmail email of the authenticated user
+     * @param targetUserId ID of the account to delete
+     * @return true if authorized
+     */
+    public boolean isUserAuthorizedForDeletion(String currentEmail, Long targetUserId) {
+        User currentUser = userRepository.findByEmail(currentEmail).orElse(null);
+        if (currentUser == null) return false;
+
+        // Allow if deleting own account
+        if (currentUser.getId().equals(targetUserId)) return true;
+
+        // Allow if ADMIN
+        return currentUser.getRole() == Role.ADMIN;
+    }
+
+    /**
+     * Delete user account by ID (for authenticated admin or self-deletion).
      *
      * @param userId user ID to delete
      * @return success message

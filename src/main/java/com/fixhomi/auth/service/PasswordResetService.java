@@ -98,14 +98,16 @@ public class PasswordResetService {
         Optional<User> userOptional = userRepository.findByEmail(email);
         if (userOptional.isEmpty()) {
             logger.debug("Password reset requested for non-existent email: {}", maskEmail(email));
-            throw new AuthenticationException("No account found with this email address.");
+            // Return silently to prevent email enumeration
+            return;
         }
 
         User user = userOptional.get();
 
         if (user.getPasswordHash() == null || user.getPasswordHash().isBlank()) {
             logger.debug("Password reset requested for OAuth-only user: {}", maskEmail(email));
-            throw new AuthenticationException("This account uses Google Sign-In and doesn't have a password to reset.");
+            // Return silently to prevent account type enumeration
+            return;
         }
 
         tokenRepository.invalidateAllUserTokens(user.getId());

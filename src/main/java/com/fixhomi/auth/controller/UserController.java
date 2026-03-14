@@ -102,17 +102,29 @@ public class UserController {
     }
 
     /**
-     * Delete user account by ID (for internal service-to-service calls).
+     * Delete user account by ID (for authenticated admin or self-deletion).
      * DELETE /api/users/{userId}
      *
-     * This endpoint is used by Node.js backend to delete user from Java Auth.
-     * INTERNAL USE ONLY - should be protected by service-to-service auth in production.
+     * Only allows deletion if the authenticated user is deleting their own account
+     * or is an ADMIN. Prevents IDOR attacks.
      *
      * @param userId the user ID to delete
      * @return success message
      */
     @DeleteMapping("/{userId}")
     public ResponseEntity<MessageResponse> deleteAccountById(@PathVariable Long userId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(401).body(new MessageResponse("Authentication required"));
+        }
+
+        String currentEmail = authentication.getName();
+        // Verify the authenticated user owns this account or is an admin
+        boolean isAuthorized = userService.isUserAuthorizedForDeletion(currentEmail, userId);
+        if (!isAuthorized) {
+            return ResponseEntity.status(403).body(new MessageResponse("Not authorized to delete this account"));
+        }
+
         MessageResponse response = userService.deleteAccountById(userId);
         return ResponseEntity.ok(response);
     }

@@ -115,7 +115,8 @@ public class AuthService {
                 user.getRole(),
                 jwtService.getExpirationTimeInSeconds(),
                 user.getPhoneNumber(),
-                user.getIsPhoneVerified()
+                user.getIsPhoneVerified(),
+                user.getIsEmailVerified()
         );
     }
 
@@ -185,7 +186,8 @@ public class AuthService {
                 user.getRole(),
                 jwtService.getExpirationTimeInSeconds(),
                 user.getPhoneNumber(),
-                user.getIsPhoneVerified()
+                user.getIsPhoneVerified(),
+                user.getIsEmailVerified()
         );
     }
 
@@ -250,7 +252,8 @@ public class AuthService {
                 user.getRole(),
                 jwtService.getExpirationTimeInSeconds(),
                 user.getPhoneNumber(),
-                user.getIsPhoneVerified()
+                user.getIsPhoneVerified(),
+                user.getIsEmailVerified()
         );
     }
 
