@@ -41,6 +41,7 @@ public class AdminUserController {
         return ResponseEntity.ok(response);
     }
 
+    
     /**
      * Create a new user with elevated roles (ADMIN, IT_ADMIN, SUPPORT).
      * POST /api/admin/users
