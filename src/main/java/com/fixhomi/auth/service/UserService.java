@@ -115,7 +115,7 @@ public class UserService {
 
     @Transactional
     public UserProfileResponse updateProfile(String email, UpdateProfileRequest request) {
-        User user = userRepository.findByEmail(email)
+        final User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
 
         if (request.getFullName() != null && !request.getFullName().isBlank()) {
@@ -124,16 +124,30 @@ public class UserService {
         }
 
         if (request.getPhoneNumber() != null) {
-            String currentPhone = user.getPhoneNumber();
-            boolean phoneIsChanging = !request.getPhoneNumber().isBlank()
-                    && (currentPhone == null || !currentPhone.equals(request.getPhoneNumber().trim()));
+            String normalizedNew = User.normalizePhoneNumber(request.getPhoneNumber());
+            String currentPhone = user.getPhoneNumber(); // already normalized in DB
+            boolean phoneIsChanging = normalizedNew != null && !normalizedNew.isBlank()
+                    && (currentPhone == null || !currentPhone.equals(normalizedNew));
 
-            if (!request.getPhoneNumber().isBlank()) {
-                boolean phoneExists = userRepository.existsByPhoneNumber(request.getPhoneNumber());
-                if (phoneExists && !request.getPhoneNumber().equals(user.getPhoneNumber())) {
-                    throw new DuplicateResourceException("User", "phoneNumber", request.getPhoneNumber());
+            if (normalizedNew != null && !normalizedNew.isBlank()) {
+                // Only block if another active user has this phone VERIFIED
+                if (!normalizedNew.equals(user.getPhoneNumber())) {
+                    if (userRepository.existsByPhoneNumberAndIsPhoneVerifiedTrueAndIsActiveTrue(normalizedNew)) {
+                        throw new DuplicateResourceException("User", "phoneNumber", request.getPhoneNumber());
+                    }
+                    // Clear unverified phone from old owner so this user can claim it
+                    final Long currentUserId = user.getId();
+                    userRepository.findByPhoneNumberAndIsActiveTrue(normalizedNew).ifPresent(oldUser -> {
+                        if (!oldUser.getId().equals(currentUserId) && !Boolean.TRUE.equals(oldUser.getIsPhoneVerified())) {
+                            logger.info("Clearing unverified phone {} from user {} for profile update",
+                                    normalizedNew, oldUser.getId());
+                            oldUser.setPhoneNumber(null);
+                            oldUser.setIsPhoneVerified(false);
+                            userRepository.save(oldUser);
+                        }
+                    });
                 }
-                user.setPhoneNumber(request.getPhoneNumber().trim());
+                user.setPhoneNumber(normalizedNew);
             } else {
                 user.setPhoneNumber(null);
             }
@@ -146,22 +160,22 @@ public class UserService {
             logger.debug("Updating phoneNumber for user: {}", email);
         }
 
-        user = userRepository.save(user);
+        User savedUser = userRepository.save(user);
         logger.info("Profile updated successfully for user: {}", email);
 
         return new UserProfileResponse(
-                user.getId(),
-                user.getEmail(),
-                user.getPhoneNumber(),
-                user.getFullName(),
-                user.getRole(),
-                user.getIsActive(),
-                user.getIsEmailVerified(),
-                user.getIsPhoneVerified(),
-                user.getCreatedAt(),
-                user.getUpdatedAt(),
-                user.getLastLoginAt(),
-                user.getPasswordHash() != null && !user.getPasswordHash().isBlank()
+                savedUser.getId(),
+                savedUser.getEmail(),
+                savedUser.getPhoneNumber(),
+                savedUser.getFullName(),
+                savedUser.getRole(),
+                savedUser.getIsActive(),
+                savedUser.getIsEmailVerified(),
+                savedUser.getIsPhoneVerified(),
+                savedUser.getCreatedAt(),
+                savedUser.getUpdatedAt(),
+                savedUser.getLastLoginAt(),
+                savedUser.getPasswordHash() != null && !savedUser.getPasswordHash().isBlank()
         );
     }
 
@@ -207,19 +221,38 @@ public class UserService {
                     "Admin user creation only allows ADMIN, IT_ADMIN, or SUPPORT roles. Use public registration for USER/SERVICE_PROVIDER.");
         }
 
-        if (userRepository.existsByEmail(request.getEmail())) {
+        String adminEmail = request.getEmail().trim().toLowerCase();
+        if (userRepository.existsByEmailAndIsEmailVerifiedTrueAndIsActiveTrue(adminEmail)) {
             throw new DuplicateResourceException("User", "email", request.getEmail());
         }
+        // Reclaim unverified email if held by another account
+        userRepository.findByEmailAndIsActiveTrue(adminEmail).ifPresent(oldUser -> {
+            if (!Boolean.TRUE.equals(oldUser.getIsEmailVerified())) {
+                oldUser.setEmail("unclaimed_" + oldUser.getId() + "@placeholder.local");
+                oldUser.setIsActive(false);
+                if (oldUser.getPhoneNumber() != null) oldUser.setPhoneNumber("del_" + oldUser.getId());
+                userRepository.save(oldUser);
+            }
+        });
 
-        if (request.getPhoneNumber() != null &&
-            !request.getPhoneNumber().isBlank() &&
-            userRepository.existsByPhoneNumber(request.getPhoneNumber())) {
-            throw new DuplicateResourceException("User", "phoneNumber", request.getPhoneNumber());
+        String normalizedAdminPhone = User.normalizePhoneNumber(request.getPhoneNumber());
+        if (normalizedAdminPhone != null && !normalizedAdminPhone.isBlank()) {
+            if (userRepository.existsByPhoneNumberAndIsPhoneVerifiedTrueAndIsActiveTrue(normalizedAdminPhone)) {
+                throw new DuplicateResourceException("User", "phoneNumber", request.getPhoneNumber());
+            }
+            // Clear unverified phone from old owner
+            userRepository.findByPhoneNumberAndIsActiveTrue(normalizedAdminPhone).ifPresent(oldUser -> {
+                if (!Boolean.TRUE.equals(oldUser.getIsPhoneVerified())) {
+                    oldUser.setPhoneNumber(null);
+                    oldUser.setIsPhoneVerified(false);
+                    userRepository.save(oldUser);
+                }
+            });
         }
 
         User user = new User();
         user.setEmail(request.getEmail());
-        user.setPhoneNumber(request.getPhoneNumber());
+        user.setPhoneNumber(normalizedAdminPhone);
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setFullName(request.getFullName());
         user.setRole(request.getRole());

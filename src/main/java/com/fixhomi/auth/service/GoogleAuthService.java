@@ -136,12 +136,20 @@ public class GoogleAuthService {
 
         logger.debug("Google token verified for email: {}", email);
 
-        // Security: Always use USER role for Google OAuth registrations.
-        // Role is determined server-side, not from client request, to prevent
-        // privilege escalation via API manipulation.
+        // Security: Only allow USER or SERVICE_PROVIDER roles for Google OAuth.
+        // Block privilege escalation to ADMIN/IT_ADMIN/SUPPORT.
         Role requestedRole = Role.USER;
-        if (request.getRole() != null && !request.getRole().isBlank() && !"USER".equals(request.getRole())) {
-            logger.warn("Ignoring client-supplied role '{}' for Google OAuth — forcing USER", request.getRole());
+        if (request.getRole() != null && !request.getRole().isBlank()) {
+            try {
+                Role clientRole = Role.valueOf(request.getRole());
+                if (clientRole == Role.USER || clientRole == Role.SERVICE_PROVIDER) {
+                    requestedRole = clientRole;
+                } else {
+                    logger.warn("Blocked privileged role '{}' for Google OAuth — forcing USER", request.getRole());
+                }
+            } catch (IllegalArgumentException e) {
+                logger.warn("Invalid role '{}' for Google OAuth — using USER", request.getRole());
+            }
         }
 
         // Determine auth mode: "login", "signup", or null (legacy)
@@ -149,8 +157,20 @@ public class GoogleAuthService {
         boolean isLoginMode = "login".equalsIgnoreCase(mode);
         boolean isSignupMode = "signup".equalsIgnoreCase(mode);
 
-        // Find existing user or create new one
+        // If email is held by an unverified account, reclaim it (Google has verified this email)
         final Role finalRole = requestedRole;
+        userRepository.findByEmailAndIsActiveTrue(email).ifPresent(existingUser -> {
+            if (!Boolean.TRUE.equals(existingUser.getIsEmailVerified())) {
+                logger.info("Google OAuth: reclaiming unverified email {} from user {} — deactivating old account",
+                        email, existingUser.getId());
+                existingUser.setEmail("unclaimed_" + existingUser.getId() + "@placeholder.local");
+                existingUser.setIsActive(false);
+                existingUser.setPhoneNumber(existingUser.getPhoneNumber() != null ? "del_" + existingUser.getId() : null);
+                userRepository.save(existingUser);
+            }
+        });
+
+        // Find existing user or create new one
         User user = userRepository.findByEmail(email).orElse(null);
         
         boolean isNewUser = false;

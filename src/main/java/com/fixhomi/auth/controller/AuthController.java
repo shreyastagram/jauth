@@ -9,6 +9,7 @@ import com.fixhomi.auth.dto.RefreshTokenRequest;
 import com.fixhomi.auth.dto.RegisterRequest;
 import com.fixhomi.auth.entity.RefreshToken;
 import com.fixhomi.auth.entity.User;
+import com.fixhomi.auth.exception.AuthenticationException;
 import com.fixhomi.auth.security.JwtService;
 import com.fixhomi.auth.service.AuthService;
 import com.fixhomi.auth.service.RefreshTokenService;
@@ -121,6 +122,12 @@ public class AuthController {
         // Rotate refresh token (validates and revokes old, creates new)
         RefreshToken newRefreshToken = refreshTokenService.rotateRefreshToken(request.getRefreshToken());
         User user = newRefreshToken.getUser();
+
+        // SECURITY: Reject refresh if account is deleted/deactivated
+        if (!user.getIsActive()) {
+            refreshTokenService.revokeToken(newRefreshToken.getToken());
+            throw new AuthenticationException("Account has been deleted or deactivated.");
+        }
 
         // Generate new access token
         String accessToken = jwtService.generateAccessToken(

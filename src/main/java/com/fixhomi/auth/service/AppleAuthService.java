@@ -147,10 +147,19 @@ public class AppleAuthService {
 
         logger.debug("Apple token verified for sub: {}", appleUserId);
 
-        // Step 3: Security — force USER role (same as Google)
+        // Step 3: Security — only allow USER or SERVICE_PROVIDER roles
         Role requestedRole = Role.USER;
-        if (request.getRole() != null && !request.getRole().isBlank() && !"USER".equals(request.getRole())) {
-            logger.warn("Ignoring client-supplied role '{}' for Apple OAuth — forcing USER", request.getRole());
+        if (request.getRole() != null && !request.getRole().isBlank()) {
+            try {
+                Role clientRole = Role.valueOf(request.getRole());
+                if (clientRole == Role.USER || clientRole == Role.SERVICE_PROVIDER) {
+                    requestedRole = clientRole;
+                } else {
+                    logger.warn("Blocked privileged role '{}' for Apple OAuth — forcing USER", request.getRole());
+                }
+            } catch (IllegalArgumentException e) {
+                logger.warn("Invalid role '{}' for Apple OAuth — using USER", request.getRole());
+            }
         }
 
         // Step 4: Determine auth mode
@@ -213,14 +222,26 @@ public class AppleAuthService {
             }
 
             // Check if email is already used (edge case: different Apple ID, same email)
+            // Only block if the existing account has a VERIFIED email
             User existingByEmail = userRepository.findByEmail(email).orElse(null);
             if (existingByEmail != null) {
-                String existingRoleDisplay = existingByEmail.getRole() == Role.SERVICE_PROVIDER ? "Service Provider" : "User";
-                throw new AuthenticationException(
-                        "ALREADY_REGISTERED:" + existingByEmail.getRole().name() + ":" +
-                        "This email is already registered as a " + existingRoleDisplay +
-                        ". Please login instead."
-                );
+                if (Boolean.TRUE.equals(existingByEmail.getIsEmailVerified())) {
+                    String existingRoleDisplay = existingByEmail.getRole() == Role.SERVICE_PROVIDER ? "Service Provider" : "User";
+                    throw new AuthenticationException(
+                            "ALREADY_REGISTERED:" + existingByEmail.getRole().name() + ":" +
+                            "This email is already registered as a " + existingRoleDisplay +
+                            ". Please login instead."
+                    );
+                }
+                // Unverified — reclaim it (Apple has verified this email)
+                logger.info("Apple OAuth: reclaiming unverified email {} from user {} — deactivating old account",
+                        email, existingByEmail.getId());
+                existingByEmail.setEmail("unclaimed_" + existingByEmail.getId() + "@placeholder.local");
+                existingByEmail.setIsActive(false);
+                if (existingByEmail.getPhoneNumber() != null) {
+                    existingByEmail.setPhoneNumber("del_" + existingByEmail.getId());
+                }
+                userRepository.save(existingByEmail);
             }
 
             user = createAppleUser(email, fullName, appleUserId, requestedRole);

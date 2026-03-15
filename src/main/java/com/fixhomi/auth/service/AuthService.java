@@ -139,22 +139,45 @@ public class AuthService {
                     "Public registration only allows USER or SERVICE_PROVIDER roles");
         }
 
-        // Check if email already exists
-        if (userRepository.existsByEmail(registerRequest.getEmail())) {
+        // Check if email is verified on another active account
+        String normalizedEmail = registerRequest.getEmail().trim().toLowerCase();
+        if (userRepository.existsByEmailAndIsEmailVerifiedTrueAndIsActiveTrue(normalizedEmail)) {
             throw new DuplicateResourceException("User", "email", registerRequest.getEmail());
         }
+        // If email exists but is unverified, the old account never confirmed ownership — reclaim it
+        userRepository.findByEmailAndIsActiveTrue(normalizedEmail).ifPresent(oldUser -> {
+            if (!Boolean.TRUE.equals(oldUser.getIsEmailVerified())) {
+                logger.info("Reclaiming unverified email {} from user {} — deactivating old account",
+                        normalizedEmail, oldUser.getId());
+                oldUser.setEmail("unclaimed_" + oldUser.getId() + "@placeholder.local");
+                oldUser.setIsActive(false);
+                oldUser.setPhoneNumber(oldUser.getPhoneNumber() != null ? "del_" + oldUser.getId() : null);
+                userRepository.save(oldUser);
+            }
+        });
 
-        // Check if phone number already exists (if provided)
-        if (registerRequest.getPhoneNumber() != null &&
-            !registerRequest.getPhoneNumber().isBlank() &&
-            userRepository.existsByPhoneNumber(registerRequest.getPhoneNumber())) {
-            throw new DuplicateResourceException("User", "phoneNumber", registerRequest.getPhoneNumber());
+        // Normalize and check if phone number is verified on another active account
+        String normalizedPhone = User.normalizePhoneNumber(registerRequest.getPhoneNumber());
+        if (normalizedPhone != null && !normalizedPhone.isBlank()) {
+            if (userRepository.existsByPhoneNumberAndIsPhoneVerifiedTrueAndIsActiveTrue(normalizedPhone)) {
+                throw new DuplicateResourceException("User", "phoneNumber", registerRequest.getPhoneNumber());
+            }
+            // If phone exists but is unverified, clear it from old account so new user can claim
+            userRepository.findByPhoneNumberAndIsActiveTrue(normalizedPhone).ifPresent(oldUser -> {
+                if (!Boolean.TRUE.equals(oldUser.getIsPhoneVerified())) {
+                    logger.info("Clearing unverified phone {} from user {} to allow new registration",
+                            normalizedPhone, oldUser.getId());
+                    oldUser.setPhoneNumber(null);
+                    oldUser.setIsPhoneVerified(false);
+                    userRepository.save(oldUser);
+                }
+            });
         }
 
-        // Create new user
+        // Create new user (phone will be re-normalized by @PrePersist)
         User user = new User();
         user.setEmail(registerRequest.getEmail());
-        user.setPhoneNumber(registerRequest.getPhoneNumber());
+        user.setPhoneNumber(normalizedPhone);
         user.setPasswordHash(passwordEncoder.encode(registerRequest.getPassword()));
         user.setFullName(registerRequest.getFullName());
         user.setRole(registerRequest.getRole());
@@ -196,13 +219,13 @@ public class AuthService {
      */
     @Transactional
     public LoginResponse loginWithPhone(PhoneLoginRequest phoneLoginRequest) {
-        String phone = phoneLoginRequest.getPhoneNumber();
+        String phone = User.normalizePhoneNumber(phoneLoginRequest.getPhoneNumber());
         logger.debug("Login attempt for phone: {}", maskPhoneNumber(phone));
 
         // Check if account is locked due to failed attempts (use phone as key)
         checkAccountLockout(phone);
 
-        // Find user by phone number
+        // Find user by phone number (normalized)
         User user = userRepository.findByPhoneNumber(phone)
                 .orElseThrow(() -> {
                     recordFailedAttempt(phone, null);
