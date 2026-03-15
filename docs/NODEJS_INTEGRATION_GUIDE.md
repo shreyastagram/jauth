@@ -1117,7 +1117,7 @@ Authorization: Bearer <admin_access_token>
 **Request Body:**
 ```json
 {
-  "email": "support@fixhomi.com",
+  "email": "contact@fixhomi.com",
   "phoneNumber": "+1234567890",
   "password": "TempPassword123!",
   "fullName": "Support Agent",
@@ -1134,7 +1134,7 @@ Authorization: Bearer <admin_access_token>
   "refreshToken": "550e8400-e29b-41d4-a716-446655440000",
   "tokenType": "Bearer",
   "userId": 5,
-  "email": "support@fixhomi.com",
+  "email": "contact@fixhomi.com",
   "fullName": "Support Agent",
   "role": "SUPPORT",
   "expiresIn": 86400

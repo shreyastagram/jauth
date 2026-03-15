@@ -100,7 +100,7 @@ public class OpenApiConfig {
                 .version("1.2.0")
                 .contact(new Contact()
                         .name("FixHomi Team")
-                        .email("support@fixhomi.com")
+                        .email("contact@fixhomi.com")
                         .url("https://fixhomi.com")
                 )
                 .license(new License()
