@@ -147,10 +147,19 @@ public class AppleAuthService {
 
         logger.debug("Apple token verified for sub: {}", appleUserId);
 
-        // Step 3: Security — force USER role (same as Google)
+        // Step 3: Security — only allow USER or SERVICE_PROVIDER roles
         Role requestedRole = Role.USER;
-        if (request.getRole() != null && !request.getRole().isBlank() && !"USER".equals(request.getRole())) {
-            logger.warn("Ignoring client-supplied role '{}' for Apple OAuth — forcing USER", request.getRole());
+        if (request.getRole() != null && !request.getRole().isBlank()) {
+            try {
+                Role clientRole = Role.valueOf(request.getRole());
+                if (clientRole == Role.USER || clientRole == Role.SERVICE_PROVIDER) {
+                    requestedRole = clientRole;
+                } else {
+                    logger.warn("Blocked privileged role '{}' for Apple OAuth — forcing USER", request.getRole());
+                }
+            } catch (IllegalArgumentException e) {
+                logger.warn("Invalid role '{}' for Apple OAuth — using USER", request.getRole());
+            }
         }
 
         // Step 4: Determine auth mode

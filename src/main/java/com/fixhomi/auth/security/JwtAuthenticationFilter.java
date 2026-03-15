@@ -58,14 +58,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 
                 if (userOpt.isEmpty()) {
                     logger.warn("JWT valid but user not found in database: {}", email);
-                    filterChain.doFilter(request, response);
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"message\":\"Account no longer exists.\",\"code\":\"ACCOUNT_DELETED\"}");
                     return;
                 }
-                
+
                 User user = userOpt.get();
                 if (!user.getIsActive()) {
                     logger.warn("JWT valid but user account is disabled: {}", email);
-                    filterChain.doFilter(request, response);
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"message\":\"Account has been deactivated.\",\"code\":\"ACCOUNT_DELETED\"}");
                     return;
                 }
                 

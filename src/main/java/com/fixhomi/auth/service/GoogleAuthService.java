@@ -136,12 +136,20 @@ public class GoogleAuthService {
 
         logger.debug("Google token verified for email: {}", email);
 
-        // Security: Always use USER role for Google OAuth registrations.
-        // Role is determined server-side, not from client request, to prevent
-        // privilege escalation via API manipulation.
+        // Security: Only allow USER or SERVICE_PROVIDER roles for Google OAuth.
+        // Block privilege escalation to ADMIN/IT_ADMIN/SUPPORT.
         Role requestedRole = Role.USER;
-        if (request.getRole() != null && !request.getRole().isBlank() && !"USER".equals(request.getRole())) {
-            logger.warn("Ignoring client-supplied role '{}' for Google OAuth — forcing USER", request.getRole());
+        if (request.getRole() != null && !request.getRole().isBlank()) {
+            try {
+                Role clientRole = Role.valueOf(request.getRole());
+                if (clientRole == Role.USER || clientRole == Role.SERVICE_PROVIDER) {
+                    requestedRole = clientRole;
+                } else {
+                    logger.warn("Blocked privileged role '{}' for Google OAuth — forcing USER", request.getRole());
+                }
+            } catch (IllegalArgumentException e) {
+                logger.warn("Invalid role '{}' for Google OAuth — using USER", request.getRole());
+            }
         }
 
         // Determine auth mode: "login", "signup", or null (legacy)
