@@ -75,43 +75,20 @@ public class OtpLoginService {
     // ==================== PHONE OTP LOGIN ====================
 
     /**
-     * Normalize phone number and try multiple formats for lookup.
-     * Handles cases where DB stores "9356011874" but frontend sends "+919356011874" or vice versa.
+     * Look up user by normalized phone number.
+     * All phones are now stored as 10 digits, so a single lookup suffices.
      */
     private User findUserByPhoneFlexible(String phoneNumber) {
-        // Try exact match first
-        User user = userRepository.findByPhoneNumber(phoneNumber).orElse(null);
-        if (user != null) return user;
-
-        String digits = phoneNumber.replaceAll("[^0-9]", "");
-
-        // If input has country code (+91 or 91 prefix), try without it (raw 10 digits)
-        if (digits.length() == 12 && digits.startsWith("91")) {
-            String raw10 = digits.substring(2);
-            user = userRepository.findByPhoneNumber(raw10).orElse(null);
-            if (user != null) return user;
-            // Also try with +91 prefix
-            user = userRepository.findByPhoneNumber("+91" + raw10).orElse(null);
-            if (user != null) return user;
-        }
-
-        // If input is raw 10 digits, try with +91 and 91 prefix
-        if (digits.length() == 10) {
-            user = userRepository.findByPhoneNumber("+91" + digits).orElse(null);
-            if (user != null) return user;
-            user = userRepository.findByPhoneNumber("91" + digits).orElse(null);
-            if (user != null) return user;
-        }
-
-        return null;
+        String normalized = User.normalizePhoneNumber(phoneNumber);
+        if (normalized == null || normalized.isBlank()) return null;
+        return userRepository.findByPhoneNumber(normalized).orElse(null);
     }
 
     /**
-     * Normalize phone number to a consistent format for OTP storage/lookup.
-     * Returns the phone number as stored in the user record for consistency.
+     * Returns the phone number as stored in the user record.
      */
     private String getStoredPhoneFormat(User user, String inputPhone) {
-        return user.getPhoneNumber() != null ? user.getPhoneNumber() : inputPhone;
+        return user.getPhoneNumber() != null ? user.getPhoneNumber() : User.normalizePhoneNumber(inputPhone);
     }
 
     /**
@@ -120,7 +97,9 @@ public class OtpLoginService {
      */
     @Transactional
     public String sendPhoneLoginOtp(String phoneNumber) {
-        // Rate limiting — check with input format
+        // Normalize phone for consistent lookups
+        phoneNumber = User.normalizePhoneNumber(phoneNumber);
+        // Rate limiting
         long recentRequests = phoneOtpRepository.countRecentOtpRequests(phoneNumber, LocalDateTime.now().minusMinutes(rateLimitMinutes));
         if (recentRequests >= rateLimitMaxRequests) {
             throw new TooManyRequestsException("Too many OTP requests. Please wait before trying again.");
@@ -171,26 +150,10 @@ public class OtpLoginService {
      */
     @Transactional
     public LoginResponse verifyPhoneLoginOtp(String phoneNumber, String otpCode) {
-        // Try to find the OTP entry — try multiple phone formats since OTP was stored with user's DB format
+        // Normalize phone — all OTPs are now stored with 10-digit normalized phone
+        phoneNumber = User.normalizePhoneNumber(phoneNumber);
         PhoneOtp otpEntry = phoneOtpRepository.findLatestValidOtpByPhone(phoneNumber, LocalDateTime.now())
                 .orElse(null);
-
-        // If not found, try alternate phone formats
-        if (otpEntry == null) {
-            String digits = phoneNumber.replaceAll("[^0-9]", "");
-            if (digits.length() == 12 && digits.startsWith("91")) {
-                String raw10 = digits.substring(2);
-                otpEntry = phoneOtpRepository.findLatestValidOtpByPhone(raw10, LocalDateTime.now()).orElse(null);
-                if (otpEntry == null) {
-                    otpEntry = phoneOtpRepository.findLatestValidOtpByPhone("+91" + raw10, LocalDateTime.now()).orElse(null);
-                }
-            } else if (digits.length() == 10) {
-                otpEntry = phoneOtpRepository.findLatestValidOtpByPhone("+91" + digits, LocalDateTime.now()).orElse(null);
-                if (otpEntry == null) {
-                    otpEntry = phoneOtpRepository.findLatestValidOtpByPhone("91" + digits, LocalDateTime.now()).orElse(null);
-                }
-            }
-        }
         if (otpEntry == null) {
             throw new VerificationException("No pending login. Please request a new OTP.");
         }

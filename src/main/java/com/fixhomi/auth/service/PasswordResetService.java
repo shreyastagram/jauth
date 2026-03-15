@@ -414,12 +414,7 @@ public class PasswordResetService {
     }
 
     private String normalizePhoneNumber(String phoneNumber) {
-        if (phoneNumber == null) return null;
-        String normalized = phoneNumber.trim();
-        if (normalized.startsWith("+")) {
-            return "+" + normalized.substring(1).replaceAll("[^0-9]", "");
-        }
-        return normalized.replaceAll("[^0-9]", "");
+        return User.normalizePhoneNumber(phoneNumber);
     }
 
     private String maskPhoneNumber(String phoneNumber) {

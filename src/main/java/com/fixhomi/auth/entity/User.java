@@ -66,6 +66,44 @@ public class User {
     @Column
     private LocalDateTime lastLoginAt;
 
+    /**
+     * Normalize phone number to 10 digits before every persist/update.
+     * Strips +91, 91 prefix, spaces, dashes.
+     * Ensures the unique index works regardless of input format.
+     */
+    @PrePersist
+    @PreUpdate
+    private void normalizeFields() {
+        if (this.phoneNumber != null) {
+            this.phoneNumber = normalizePhoneNumber(this.phoneNumber);
+        }
+        if (this.email != null) {
+            this.email = this.email.trim().toLowerCase();
+        }
+    }
+
+    /**
+     * Normalize an Indian phone number to exactly 10 digits.
+     * "+919356011874" → "9356011874"
+     * "919356011874"  → "9356011874"
+     * "9356011874"    → "9356011874"
+     * Deleted placeholders like "del_123" are left unchanged.
+     */
+    public static String normalizePhoneNumber(String phone) {
+        if (phone == null || phone.isBlank() || phone.startsWith("del_")) {
+            return phone;
+        }
+        String digits = phone.replaceAll("[^0-9]", "");
+        if (digits.length() > 10 && digits.startsWith("91")) {
+            digits = digits.substring(2);
+        }
+        if (digits.length() == 10) {
+            return digits;
+        }
+        // Return cleaned digits even if not exactly 10 (edge cases)
+        return digits.isEmpty() ? null : digits;
+    }
+
     // Constructors
     public User() {
     }

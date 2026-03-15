@@ -51,6 +51,17 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByPhoneNumber(String phoneNumber);
 
     /**
+     * Check if phone number exists AND is verified on an active account.
+     * Only verified phones should block new registrations/updates.
+     */
+    boolean existsByPhoneNumberAndIsPhoneVerifiedTrueAndIsActiveTrue(String phoneNumber);
+
+    /**
+     * Find user by phone number who is active (for clearing unverified phones).
+     */
+    Optional<User> findByPhoneNumberAndIsActiveTrue(String phoneNumber);
+
+    /**
      * Find all active users by role.
      * Used for admin operations.
      *
