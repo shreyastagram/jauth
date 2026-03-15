@@ -115,7 +115,7 @@ public class UserService {
 
     @Transactional
     public UserProfileResponse updateProfile(String email, UpdateProfileRequest request) {
-        User user = userRepository.findByEmail(email)
+        final User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
 
         if (request.getFullName() != null && !request.getFullName().isBlank()) {
@@ -136,8 +136,9 @@ public class UserService {
                         throw new DuplicateResourceException("User", "phoneNumber", request.getPhoneNumber());
                     }
                     // Clear unverified phone from old owner so this user can claim it
+                    final Long currentUserId = user.getId();
                     userRepository.findByPhoneNumberAndIsActiveTrue(normalizedNew).ifPresent(oldUser -> {
-                        if (!oldUser.getId().equals(user.getId()) && !Boolean.TRUE.equals(oldUser.getIsPhoneVerified())) {
+                        if (!oldUser.getId().equals(currentUserId) && !Boolean.TRUE.equals(oldUser.getIsPhoneVerified())) {
                             logger.info("Clearing unverified phone {} from user {} for profile update",
                                     normalizedNew, oldUser.getId());
                             oldUser.setPhoneNumber(null);
@@ -159,22 +160,22 @@ public class UserService {
             logger.debug("Updating phoneNumber for user: {}", email);
         }
 
-        user = userRepository.save(user);
+        User savedUser = userRepository.save(user);
         logger.info("Profile updated successfully for user: {}", email);
 
         return new UserProfileResponse(
-                user.getId(),
-                user.getEmail(),
-                user.getPhoneNumber(),
-                user.getFullName(),
-                user.getRole(),
-                user.getIsActive(),
-                user.getIsEmailVerified(),
-                user.getIsPhoneVerified(),
-                user.getCreatedAt(),
-                user.getUpdatedAt(),
-                user.getLastLoginAt(),
-                user.getPasswordHash() != null && !user.getPasswordHash().isBlank()
+                savedUser.getId(),
+                savedUser.getEmail(),
+                savedUser.getPhoneNumber(),
+                savedUser.getFullName(),
+                savedUser.getRole(),
+                savedUser.getIsActive(),
+                savedUser.getIsEmailVerified(),
+                savedUser.getIsPhoneVerified(),
+                savedUser.getCreatedAt(),
+                savedUser.getUpdatedAt(),
+                savedUser.getLastLoginAt(),
+                savedUser.getPasswordHash() != null && !savedUser.getPasswordHash().isBlank()
         );
     }
 
