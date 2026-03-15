@@ -149,8 +149,20 @@ public class GoogleAuthService {
         boolean isLoginMode = "login".equalsIgnoreCase(mode);
         boolean isSignupMode = "signup".equalsIgnoreCase(mode);
 
-        // Find existing user or create new one
+        // If email is held by an unverified account, reclaim it (Google has verified this email)
         final Role finalRole = requestedRole;
+        userRepository.findByEmailAndIsActiveTrue(email).ifPresent(existingUser -> {
+            if (!Boolean.TRUE.equals(existingUser.getIsEmailVerified())) {
+                logger.info("Google OAuth: reclaiming unverified email {} from user {} — deactivating old account",
+                        email, existingUser.getId());
+                existingUser.setEmail("unclaimed_" + existingUser.getId() + "@placeholder.local");
+                existingUser.setIsActive(false);
+                existingUser.setPhoneNumber(existingUser.getPhoneNumber() != null ? "del_" + existingUser.getId() : null);
+                userRepository.save(existingUser);
+            }
+        });
+
+        // Find existing user or create new one
         User user = userRepository.findByEmail(email).orElse(null);
         
         boolean isNewUser = false;

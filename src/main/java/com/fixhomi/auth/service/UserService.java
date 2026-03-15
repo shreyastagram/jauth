@@ -221,9 +221,19 @@ public class UserService {
                     "Admin user creation only allows ADMIN, IT_ADMIN, or SUPPORT roles. Use public registration for USER/SERVICE_PROVIDER.");
         }
 
-        if (userRepository.existsByEmail(request.getEmail())) {
+        String adminEmail = request.getEmail().trim().toLowerCase();
+        if (userRepository.existsByEmailAndIsEmailVerifiedTrueAndIsActiveTrue(adminEmail)) {
             throw new DuplicateResourceException("User", "email", request.getEmail());
         }
+        // Reclaim unverified email if held by another account
+        userRepository.findByEmailAndIsActiveTrue(adminEmail).ifPresent(oldUser -> {
+            if (!Boolean.TRUE.equals(oldUser.getIsEmailVerified())) {
+                oldUser.setEmail("unclaimed_" + oldUser.getId() + "@placeholder.local");
+                oldUser.setIsActive(false);
+                if (oldUser.getPhoneNumber() != null) oldUser.setPhoneNumber("del_" + oldUser.getId());
+                userRepository.save(oldUser);
+            }
+        });
 
         String normalizedAdminPhone = User.normalizePhoneNumber(request.getPhoneNumber());
         if (normalizedAdminPhone != null && !normalizedAdminPhone.isBlank()) {

@@ -139,10 +139,22 @@ public class AuthService {
                     "Public registration only allows USER or SERVICE_PROVIDER roles");
         }
 
-        // Check if email already exists
-        if (userRepository.existsByEmail(registerRequest.getEmail())) {
+        // Check if email is verified on another active account
+        String normalizedEmail = registerRequest.getEmail().trim().toLowerCase();
+        if (userRepository.existsByEmailAndIsEmailVerifiedTrueAndIsActiveTrue(normalizedEmail)) {
             throw new DuplicateResourceException("User", "email", registerRequest.getEmail());
         }
+        // If email exists but is unverified, the old account never confirmed ownership — reclaim it
+        userRepository.findByEmailAndIsActiveTrue(normalizedEmail).ifPresent(oldUser -> {
+            if (!Boolean.TRUE.equals(oldUser.getIsEmailVerified())) {
+                logger.info("Reclaiming unverified email {} from user {} — deactivating old account",
+                        normalizedEmail, oldUser.getId());
+                oldUser.setEmail("unclaimed_" + oldUser.getId() + "@placeholder.local");
+                oldUser.setIsActive(false);
+                oldUser.setPhoneNumber(oldUser.getPhoneNumber() != null ? "del_" + oldUser.getId() : null);
+                userRepository.save(oldUser);
+            }
+        });
 
         // Normalize and check if phone number is verified on another active account
         String normalizedPhone = User.normalizePhoneNumber(registerRequest.getPhoneNumber());

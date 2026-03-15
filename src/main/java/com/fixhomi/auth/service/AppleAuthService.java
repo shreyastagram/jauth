@@ -213,14 +213,26 @@ public class AppleAuthService {
             }
 
             // Check if email is already used (edge case: different Apple ID, same email)
+            // Only block if the existing account has a VERIFIED email
             User existingByEmail = userRepository.findByEmail(email).orElse(null);
             if (existingByEmail != null) {
-                String existingRoleDisplay = existingByEmail.getRole() == Role.SERVICE_PROVIDER ? "Service Provider" : "User";
-                throw new AuthenticationException(
-                        "ALREADY_REGISTERED:" + existingByEmail.getRole().name() + ":" +
-                        "This email is already registered as a " + existingRoleDisplay +
-                        ". Please login instead."
-                );
+                if (Boolean.TRUE.equals(existingByEmail.getIsEmailVerified())) {
+                    String existingRoleDisplay = existingByEmail.getRole() == Role.SERVICE_PROVIDER ? "Service Provider" : "User";
+                    throw new AuthenticationException(
+                            "ALREADY_REGISTERED:" + existingByEmail.getRole().name() + ":" +
+                            "This email is already registered as a " + existingRoleDisplay +
+                            ". Please login instead."
+                    );
+                }
+                // Unverified — reclaim it (Apple has verified this email)
+                logger.info("Apple OAuth: reclaiming unverified email {} from user {} — deactivating old account",
+                        email, existingByEmail.getId());
+                existingByEmail.setEmail("unclaimed_" + existingByEmail.getId() + "@placeholder.local");
+                existingByEmail.setIsActive(false);
+                if (existingByEmail.getPhoneNumber() != null) {
+                    existingByEmail.setPhoneNumber("del_" + existingByEmail.getId());
+                }
+                userRepository.save(existingByEmail);
             }
 
             user = createAppleUser(email, fullName, appleUserId, requestedRole);
