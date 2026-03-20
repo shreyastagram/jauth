@@ -81,4 +81,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * @return list of users
      */
     List<User> findByRoleAndIsActive(Role role, Boolean isActive);
+
+    /**
+     * Find user by Apple user ID (stable per-app identifier from Apple Sign-In).
+     */
+    Optional<User> findByAppleUserId(String appleUserId);
 }

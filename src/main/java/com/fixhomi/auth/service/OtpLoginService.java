@@ -148,7 +148,7 @@ public class OtpLoginService {
      * Verify OTP and complete phone-based login.
      * OTP is verified locally.
      */
-    @Transactional
+    @Transactional(noRollbackFor = { VerificationException.class })
     public LoginResponse verifyPhoneLoginOtp(String phoneNumber, String otpCode) {
         // Normalize phone — all OTPs are now stored with 10-digit normalized phone
         phoneNumber = User.normalizePhoneNumber(phoneNumber);
@@ -279,7 +279,7 @@ public class OtpLoginService {
     /**
      * Verify OTP and complete email-based login.
      */
-    @Transactional
+    @Transactional(noRollbackFor = { VerificationException.class })
     public LoginResponse verifyEmailLoginOtp(String email, String otpCode) {
         String emailLower = email.toLowerCase();
 

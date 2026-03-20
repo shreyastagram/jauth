@@ -248,6 +248,13 @@ public class AppleAuthService {
             isNewUser = true;
         }
 
+        // Step 5b: Link Apple user ID to existing user if not already set
+        if (user.getAppleUserId() == null || user.getAppleUserId().isBlank()) {
+            user.setAppleUserId(appleUserId);
+            userRepository.save(user);
+            logger.info("Linked Apple user ID to existing user: {}", user.getEmail());
+        }
+
         // Step 6: Check if user is active
         if (!user.getIsActive()) {
             logger.warn("Apple login blocked for disabled user: {}", user.getEmail());
@@ -440,10 +447,7 @@ public class AppleAuthService {
      * For users who used "Hide My Email", the relay email is their unique identifier.
      */
     private User findUserByAppleId(String appleUserId) {
-        // Apple user IDs are stable per-app. We can't query by them directly
-        // unless we add an appleUserId column. For now, lookup is by email only.
-        // The appleUserId is used as a fallback identifier in the token subject.
-        return null;
+        return userRepository.findByAppleUserId(appleUserId).orElse(null);
     }
 
     /**
@@ -460,6 +464,7 @@ public class AppleAuthService {
         user.setIsActive(true);
         user.setIsEmailVerified(true); // Apple has verified the email
         user.setIsPhoneVerified(false);
+        user.setAppleUserId(appleUserId);
 
         return userRepository.save(user);
     }
