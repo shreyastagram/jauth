@@ -14,7 +14,8 @@ import jakarta.validation.constraints.Pattern;
  */
 public class AppleMobileAuthRequest {
 
-    @NotBlank(message = "Apple identity token is required")
+    // Not @NotBlank — can be null when retrying with a verificationToken
+    // (Apple identity token expires in ~5 min, email OTP flow takes longer)
     private String identityToken;
 
     /**

@@ -126,28 +126,54 @@ public class AppleAuthService {
 
         logger.debug("Mobile Apple authentication attempt");
 
-        // Step 1: Verify the Apple identity token
-        Claims claims = verifyAppleIdentityToken(request.getIdentityToken());
-
-        // Step 2: Extract user info from verified token
-        String appleUserId = claims.getSubject(); // Apple's stable user identifier
-        String tokenEmail = claims.get("email", String.class);
-
-        // Apple provides email in token on first sign-in, or client sends it
-        String email = tokenEmail;
-        if ((email == null || email.isBlank()) && request.getEmail() != null) {
-            email = request.getEmail();
-        }
-
-        // Apple provides name ONLY on first sign-in via the client SDK (not in the token)
+        String appleUserId;
+        String email;
         String fullName = request.getFullName();
 
-        if (appleUserId == null || appleUserId.isBlank()) {
-            throw new AuthenticationException("Apple user identifier not found in token.");
-        }
+        // Two paths: normal (with identity token) or retry (with verification token only)
+        if (request.getIdentityToken() != null && !request.getIdentityToken().isBlank()) {
+            // Step 1a: Normal flow — verify Apple identity token
+            Claims claims = verifyAppleIdentityToken(request.getIdentityToken());
+            appleUserId = claims.getSubject();
+            String tokenEmail = claims.get("email", String.class);
+            email = tokenEmail;
+            if ((email == null || email.isBlank()) && request.getEmail() != null) {
+                email = request.getEmail();
+            }
 
-        logger.info("Apple token verified — sub: {}, tokenEmail: {}, requestEmail: {}",
-                appleUserId, tokenEmail, request.getEmail());
+            if (appleUserId == null || appleUserId.isBlank()) {
+                throw new AuthenticationException("Apple user identifier not found in token.");
+            }
+
+            logger.info("Apple token verified — sub: {}, tokenEmail: {}, requestEmail: {}",
+                    appleUserId, tokenEmail, request.getEmail());
+        } else if (request.getVerificationToken() != null && !request.getVerificationToken().isBlank()) {
+            // Step 1b: Retry flow — identity token expired, use verification token
+            // The verification token was signed by us and contains the appleUserId + verified email
+            try {
+                Claims vtClaims = jwtService.parseVerificationToken(request.getVerificationToken());
+                String purpose = vtClaims.get("purpose", String.class);
+                Boolean verified = vtClaims.get("verified", Boolean.class);
+
+                if (!"apple_email_verification".equals(purpose) || !Boolean.TRUE.equals(verified)) {
+                    throw new AuthenticationException("Invalid verification token.");
+                }
+
+                appleUserId = vtClaims.getSubject();
+                email = vtClaims.get("email", String.class);
+
+                if (appleUserId == null || appleUserId.isBlank()) {
+                    throw new AuthenticationException("Verification token missing Apple user ID.");
+                }
+
+                logger.info("Apple retry auth via verification token — sub: {}, email: {}", appleUserId, email);
+            } catch (io.jsonwebtoken.JwtException e) {
+                logger.warn("Expired/invalid Apple verification token: {}", e.getMessage());
+                throw new AuthenticationException("Email verification has expired. Please try again.");
+            }
+        } else {
+            throw new AuthenticationException("Apple identity token or verification token is required.");
+        }
 
         // Step 3: Security — only allow USER or SERVICE_PROVIDER roles
         Role requestedRole = Role.USER;
@@ -216,41 +242,12 @@ public class AppleAuthService {
                 );
             }
 
-            // No email available (phone-only Apple ID or subsequent sign-in)
-            // Check if the frontend sent a verification token from the email OTP flow
+            // No email available — tell frontend to collect + verify email via OTP
             if (email == null || email.isBlank()) {
-                if (request.getVerificationToken() != null && !request.getVerificationToken().isBlank()) {
-                    // Validate the verification token and extract the verified email
-                    try {
-                        Claims verificationClaims = jwtService.parseVerificationToken(request.getVerificationToken());
-                        String purpose = verificationClaims.get("purpose", String.class);
-                        Boolean verified = verificationClaims.get("verified", Boolean.class);
-                        String tokenAppleUserId = verificationClaims.getSubject();
-
-                        if (!"apple_email_verification".equals(purpose) || !Boolean.TRUE.equals(verified)) {
-                            throw new AuthenticationException("Invalid verification token.");
-                        }
-                        if (!appleUserId.equals(tokenAppleUserId)) {
-                            logger.warn("Verification token appleUserId mismatch: token={}, request={}",
-                                    tokenAppleUserId, appleUserId);
-                            throw new AuthenticationException("Verification token does not match this Apple account.");
-                        }
-
-                        email = verificationClaims.get("email", String.class);
-                        logger.info("Apple auth: email extracted from verification token — {}", email);
-
-                    } catch (JwtException e) {
-                        logger.warn("Invalid or expired Apple verification token: {}", e.getMessage());
-                        throw new AuthenticationException(
-                                "Email verification has expired. Please verify your email again.");
-                    }
-                } else {
-                    // Frontend must collect and verify the email before retrying
-                    throw new AuthenticationException(
-                            "EMAIL_REQUIRED:" + appleUserId + ":" +
-                            "Please provide your email address to complete registration."
-                    );
-                }
+                throw new AuthenticationException(
+                        "EMAIL_REQUIRED:" + appleUserId + ":" +
+                        "Please provide your email address to complete registration."
+                );
             }
 
             // Check if email is already used (edge case: different Apple ID, same email)
