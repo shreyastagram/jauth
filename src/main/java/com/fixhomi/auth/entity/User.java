@@ -66,6 +66,9 @@ public class User {
     @Column
     private LocalDateTime lastLoginAt;
 
+    @Column(name = "apple_user_id", unique = true)
+    private String appleUserId;
+
     /**
      * Normalize phone number to 10 digits before every persist/update.
      * Strips +91, 91 prefix, spaces, dashes.
@@ -210,5 +213,13 @@ public class User {
 
     public void setLastLoginAt(LocalDateTime lastLoginAt) {
         this.lastLoginAt = lastLoginAt;
+    }
+
+    public String getAppleUserId() {
+        return appleUserId;
+    }
+
+    public void setAppleUserId(String appleUserId) {
+        this.appleUserId = appleUserId;
     }
 }

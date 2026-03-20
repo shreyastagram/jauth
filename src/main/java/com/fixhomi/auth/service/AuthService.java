@@ -60,8 +60,9 @@ public class AuthService {
 
     /**
      * Authenticate user and generate JWT token.
+     * noRollbackFor: failed attempts must persist even when auth exception is thrown.
      */
-    @Transactional
+    @Transactional(noRollbackFor = { AuthenticationException.class, TooManyRequestsException.class })
     public LoginResponse login(LoginRequest loginRequest) {
         String email = loginRequest.getEmail().toLowerCase();
         logger.debug("Login attempt for email: {}", email);
@@ -216,8 +217,9 @@ public class AuthService {
 
     /**
      * Authenticate user with phone number and password.
+     * noRollbackFor: failed attempts must persist even when auth exception is thrown.
      */
-    @Transactional
+    @Transactional(noRollbackFor = { AuthenticationException.class, TooManyRequestsException.class })
     public LoginResponse loginWithPhone(PhoneLoginRequest phoneLoginRequest) {
         String phone = User.normalizePhoneNumber(phoneLoginRequest.getPhoneNumber());
         logger.debug("Login attempt for phone: {}", maskPhoneNumber(phone));
