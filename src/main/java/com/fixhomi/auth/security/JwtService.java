@@ -144,6 +144,41 @@ public class JwtService {
     }
 
     /**
+     * Generate a short-lived verification token for Apple email OTP flow.
+     * Contains the Apple user ID, verified email, and purpose claim.
+     *
+     * @param appleUserId Apple's stable user identifier
+     * @param email the verified email address
+     * @return signed JWT verification token (10 minute TTL)
+     */
+    public String generateVerificationToken(String appleUserId, String email) {
+        return Jwts.builder()
+                .setSubject(appleUserId)
+                .claim("email", email)
+                .claim("verified", true)
+                .claim("purpose", "apple_email_verification")
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + 600000)) // 10 min
+                .signWith(getSigningKey(), SignatureAlgorithm.HS512)
+                .compact();
+    }
+
+    /**
+     * Parse and validate a verification token.
+     *
+     * @param token the verification token
+     * @return Claims if valid
+     * @throws JwtException if invalid or expired
+     */
+    public Claims parseVerificationToken(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(getSigningKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+    }
+
+    /**
      * Get signing key from secret.
      *
      * @return SecretKey

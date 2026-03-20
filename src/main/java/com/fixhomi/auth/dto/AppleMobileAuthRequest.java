@@ -58,6 +58,13 @@ public class AppleMobileAuthRequest {
     @Pattern(regexp = "^(login|signup)?$", message = "Mode must be 'login' or 'signup'")
     private String mode;
 
+    /**
+     * Optional verification token — issued after email OTP verification
+     * for users whose Apple ID does not expose an email.
+     * If present, the backend validates it and extracts the verified email.
+     */
+    private String verificationToken;
+
     // Optional: device info
     private String deviceId;
     private String deviceType;
@@ -100,4 +107,7 @@ public class AppleMobileAuthRequest {
 
     public String getAppVersion() { return appVersion; }
     public void setAppVersion(String appVersion) { this.appVersion = appVersion; }
+
+    public String getVerificationToken() { return verificationToken; }
+    public void setVerificationToken(String verificationToken) { this.verificationToken = verificationToken; }
 }

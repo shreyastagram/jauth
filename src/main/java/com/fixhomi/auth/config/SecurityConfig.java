@@ -91,7 +91,9 @@ public class SecurityConfig {
                         "/api/auth/reset-password/validate",
                         "/api/auth/email/verify",
                         "/api/auth/oauth2/google/mobile",  // Mobile Google Sign-In
-                        "/api/auth/oauth2/apple/mobile",   // Mobile Apple Sign-In
+                        "/api/auth/oauth2/apple/mobile",           // Mobile Apple Sign-In
+                        "/api/auth/oauth2/apple/send-email-otp",   // Apple email OTP send
+                        "/api/auth/oauth2/apple/verify-email-otp", // Apple email OTP verify
                         // Passwordless OTP Login endpoints
                         "/api/auth/login/phone/send-otp",
                         "/api/auth/login/phone/verify",

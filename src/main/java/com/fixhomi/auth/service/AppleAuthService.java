@@ -9,6 +9,7 @@ import com.fixhomi.auth.exception.AuthenticationException;
 import com.fixhomi.auth.repository.UserRepository;
 import com.fixhomi.auth.security.JwtService;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -145,7 +146,8 @@ public class AppleAuthService {
             throw new AuthenticationException("Apple user identifier not found in token.");
         }
 
-        logger.debug("Apple token verified for sub: {}", appleUserId);
+        logger.info("Apple token verified — sub: {}, tokenEmail: {}, requestEmail: {}",
+                appleUserId, tokenEmail, request.getEmail());
 
         // Step 3: Security — only allow USER or SERVICE_PROVIDER roles
         Role requestedRole = Role.USER;
@@ -214,11 +216,41 @@ public class AppleAuthService {
                 );
             }
 
-            // Must have email for new user creation
+            // No email available (phone-only Apple ID or subsequent sign-in)
+            // Check if the frontend sent a verification token from the email OTP flow
             if (email == null || email.isBlank()) {
-                throw new AuthenticationException(
-                        "Email is required for registration. Please allow email access in Apple Sign-In."
-                );
+                if (request.getVerificationToken() != null && !request.getVerificationToken().isBlank()) {
+                    // Validate the verification token and extract the verified email
+                    try {
+                        Claims verificationClaims = jwtService.parseVerificationToken(request.getVerificationToken());
+                        String purpose = verificationClaims.get("purpose", String.class);
+                        Boolean verified = verificationClaims.get("verified", Boolean.class);
+                        String tokenAppleUserId = verificationClaims.getSubject();
+
+                        if (!"apple_email_verification".equals(purpose) || !Boolean.TRUE.equals(verified)) {
+                            throw new AuthenticationException("Invalid verification token.");
+                        }
+                        if (!appleUserId.equals(tokenAppleUserId)) {
+                            logger.warn("Verification token appleUserId mismatch: token={}, request={}",
+                                    tokenAppleUserId, appleUserId);
+                            throw new AuthenticationException("Verification token does not match this Apple account.");
+                        }
+
+                        email = verificationClaims.get("email", String.class);
+                        logger.info("Apple auth: email extracted from verification token — {}", email);
+
+                    } catch (JwtException e) {
+                        logger.warn("Invalid or expired Apple verification token: {}", e.getMessage());
+                        throw new AuthenticationException(
+                                "Email verification has expired. Please verify your email again.");
+                    }
+                } else {
+                    // Frontend must collect and verify the email before retrying
+                    throw new AuthenticationException(
+                            "EMAIL_REQUIRED:" + appleUserId + ":" +
+                            "Please provide your email address to complete registration."
+                    );
+                }
             }
 
             // Check if email is already used (edge case: different Apple ID, same email)
@@ -458,7 +490,7 @@ public class AppleAuthService {
 
         User user = new User();
         user.setEmail(email);
-        user.setFullName(fullName != null && !fullName.isBlank() ? fullName : email.split("@")[0]);
+        user.setFullName(fullName != null && !fullName.isBlank() ? fullName : (email != null ? email.split("@")[0] : "User"));
         user.setPasswordHash(null); // OAuth users don't have password
         user.setRole(role);
         user.setIsActive(true);

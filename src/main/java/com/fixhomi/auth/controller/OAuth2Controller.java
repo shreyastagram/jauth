@@ -3,7 +3,9 @@ package com.fixhomi.auth.controller;
 import com.fixhomi.auth.dto.AppleMobileAuthRequest;
 import com.fixhomi.auth.dto.GoogleMobileAuthRequest;
 import com.fixhomi.auth.dto.LoginResponse;
+import com.fixhomi.auth.dto.MessageResponse;
 import com.fixhomi.auth.service.AppleAuthService;
+import com.fixhomi.auth.service.AppleEmailVerificationService;
 import com.fixhomi.auth.service.GoogleAuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -15,6 +17,8 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 /**
  * REST controller for OAuth2 authentication endpoints.
@@ -30,6 +34,9 @@ public class OAuth2Controller {
 
     @Autowired
     private AppleAuthService appleAuthService;
+
+    @Autowired
+    private AppleEmailVerificationService appleEmailVerificationService;
 
     /**
      * Mobile Google Sign-In endpoint.
@@ -127,5 +134,92 @@ public class OAuth2Controller {
 
         LoginResponse response = appleAuthService.authenticateWithApple(request);
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Send email OTP for Apple Sign-In email verification.
+     * Used when Apple does not provide the user's email and the user
+     * must verify their email before registration can proceed.
+     *
+     * POST /api/auth/oauth2/apple/send-email-otp
+     *
+     * @param body must contain "email" and "appleUserId"
+     * @return success message
+     */
+    @Operation(
+        summary = "Send Apple email verification OTP",
+        description = "Send a 6-digit OTP to the provided email for Apple Sign-In email verification. " +
+                      "Rate limited to 3 requests per minute per Apple user."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "OTP sent successfully"),
+        @ApiResponse(responseCode = "400", description = "Invalid request"),
+        @ApiResponse(responseCode = "429", description = "Rate limit exceeded")
+    })
+    @PostMapping("/apple/send-email-otp")
+    public ResponseEntity<MessageResponse> appleSendEmailOtp(@RequestBody Map<String, String> body) {
+        String email = body.get("email");
+        String appleUserId = body.get("appleUserId");
+
+        // Input validation
+        if (email == null || email.isBlank() || !email.contains("@")) {
+            return ResponseEntity.badRequest()
+                    .body(new MessageResponse("A valid email address is required."));
+        }
+        if (appleUserId == null || appleUserId.isBlank()) {
+            return ResponseEntity.badRequest()
+                    .body(new MessageResponse("Apple user ID is required."));
+        }
+
+        appleEmailVerificationService.sendOtp(email, appleUserId);
+
+        return ResponseEntity.ok(new MessageResponse("Verification code sent to " + email));
+    }
+
+    /**
+     * Verify email OTP for Apple Sign-In email verification.
+     * Returns a signed verification token that can be included in the
+     * Apple mobile auth request to prove the email was verified.
+     *
+     * POST /api/auth/oauth2/apple/verify-email-otp
+     *
+     * @param body must contain "email", "appleUserId", and "otp"
+     * @return verification result with signed token
+     */
+    @Operation(
+        summary = "Verify Apple email OTP",
+        description = "Verify the 6-digit OTP sent to the user's email. " +
+                      "Returns a signed verification token (10 min TTL) to use with Apple mobile auth."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "OTP verified successfully"),
+        @ApiResponse(responseCode = "400", description = "Invalid or expired OTP")
+    })
+    @PostMapping("/apple/verify-email-otp")
+    public ResponseEntity<Map<String, Object>> appleVerifyEmailOtp(@RequestBody Map<String, String> body) {
+        String email = body.get("email");
+        String appleUserId = body.get("appleUserId");
+        String otp = body.get("otp");
+
+        // Input validation
+        if (email == null || email.isBlank() || !email.contains("@")) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("verified", false, "error", "A valid email address is required."));
+        }
+        if (appleUserId == null || appleUserId.isBlank()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("verified", false, "error", "Apple user ID is required."));
+        }
+        if (otp == null || !otp.matches("^\\d{6}$")) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("verified", false, "error", "A valid 6-digit verification code is required."));
+        }
+
+        String verificationToken = appleEmailVerificationService.verifyOtp(email, appleUserId, otp);
+
+        return ResponseEntity.ok(Map.of(
+                "verified", true,
+                "verificationToken", verificationToken
+        ));
     }
 }
