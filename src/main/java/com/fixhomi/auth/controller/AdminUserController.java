@@ -1,8 +1,10 @@
 package com.fixhomi.auth.controller;
 
 import com.fixhomi.auth.dto.AdminCreateUserRequest;
+import com.fixhomi.auth.dto.AdminUserListResponse;
 import com.fixhomi.auth.dto.UpdateUserStatusRequest;
 import com.fixhomi.auth.dto.UserProfileResponse;
+import com.fixhomi.auth.entity.User;
 import com.fixhomi.auth.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -61,5 +63,58 @@ public class AdminUserController {
         
         UserProfileResponse response = userService.createUserByAdmin(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    /**
+     * List all users/providers with pagination, search, and filtering.
+     * GET /api/admin/users/list
+     *
+     * Query params:
+     *   role: USER | SERVICE_PROVIDER (default: both)
+     *   status: active | disabled (default: all)
+     *   search: search by name, email, or phone
+     *   page: page number (0-based, default: 0)
+     *   size: page size (default: 20, max: 100)
+     *
+     * Access: ADMIN or IT_ADMIN only
+     */
+    @GetMapping("/list")
+    @PreAuthorize("hasAnyRole('ADMIN', 'IT_ADMIN')")
+    public ResponseEntity<AdminUserListResponse> listUsers(
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+
+        AdminUserListResponse response = userService.listUsers(role, status, search, page, size);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Get a single user's full auth profile by ID.
+     * GET /api/admin/users/{userId}
+     *
+     * Access: ADMIN or IT_ADMIN only
+     */
+    @GetMapping("/{userId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'IT_ADMIN')")
+    public ResponseEntity<UserProfileResponse> getUserById(@PathVariable Long userId) {
+        User user = userService.getUserById(userId);
+        UserProfileResponse response = new UserProfileResponse(
+                user.getId(),
+                user.getEmail(),
+                user.getPhoneNumber(),
+                user.getFullName(),
+                user.getRole(),
+                user.getIsActive(),
+                user.getIsEmailVerified(),
+                user.getIsPhoneVerified(),
+                user.getCreatedAt(),
+                user.getUpdatedAt(),
+                user.getLastLoginAt(),
+                user.getPasswordHash() != null && !user.getPasswordHash().isBlank()
+        );
+        return ResponseEntity.ok(response);
     }
 }

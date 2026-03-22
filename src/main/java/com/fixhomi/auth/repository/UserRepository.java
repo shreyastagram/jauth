@@ -2,7 +2,11 @@ package com.fixhomi.auth.repository;
 
 import com.fixhomi.auth.entity.Role;
 import com.fixhomi.auth.entity.User;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -86,4 +90,32 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * Find user by Apple user ID (stable per-app identifier from Apple Sign-In).
      */
     Optional<User> findByAppleUserId(String appleUserId);
+
+    /**
+     * Find users by roles with pagination.
+     */
+    Page<User> findByRoleIn(List<Role> roles, Pageable pageable);
+
+    /**
+     * Find users by roles and active status with pagination.
+     */
+    Page<User> findByRoleInAndIsActive(List<Role> roles, Boolean isActive, Pageable pageable);
+
+    /**
+     * Search users by roles and query (name, email, or phone) with pagination.
+     */
+    @Query("SELECT u FROM User u WHERE u.role IN :roles AND (" +
+           "LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+           "LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+           "u.phoneNumber LIKE CONCAT('%', :search, '%'))")
+    Page<User> searchByRolesAndQuery(@Param("roles") List<Role> roles, @Param("search") String search, Pageable pageable);
+
+    /**
+     * Search users by roles, query, and active status with pagination.
+     */
+    @Query("SELECT u FROM User u WHERE u.role IN :roles AND u.isActive = :isActive AND (" +
+           "LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+           "LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+           "u.phoneNumber LIKE CONCAT('%', :search, '%'))")
+    Page<User> searchByRolesAndQueryAndStatus(@Param("roles") List<Role> roles, @Param("search") String search, @Param("isActive") Boolean isActive, Pageable pageable);
 }
