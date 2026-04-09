@@ -1,6 +1,7 @@
 package com.fixhomi.auth.service;
 
 import com.fixhomi.auth.dto.AdminCreateUserRequest;
+import com.fixhomi.auth.dto.AdminUserListResponse;
 import com.fixhomi.auth.dto.ChangePasswordRequest;
 import com.fixhomi.auth.dto.DeleteAccountRequest;
 import com.fixhomi.auth.dto.MessageResponse;
@@ -19,6 +20,10 @@ import com.fixhomi.auth.repository.UserRepository;
 import com.fixhomi.auth.service.notification.SmsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -26,6 +31,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
@@ -209,6 +217,80 @@ public class UserService {
                 user.getLastLoginAt(),
                 user.getPasswordHash() != null && !user.getPasswordHash().isBlank()
         );
+    }
+
+    /**
+     * List users/providers with pagination, search, and filtering.
+     * Admin-only operation.
+     */
+    public AdminUserListResponse listUsers(String roleFilter, String statusFilter, String search, int page, int size) {
+        // Clamp page size
+        if (size < 1) size = 20;
+        if (size > 100) size = 100;
+        if (page < 0) page = 0;
+
+        // Determine roles to query
+        List<Role> roles;
+        if ("USER".equalsIgnoreCase(roleFilter)) {
+            roles = Arrays.asList(Role.USER);
+        } else if ("SERVICE_PROVIDER".equalsIgnoreCase(roleFilter)) {
+            roles = Arrays.asList(Role.SERVICE_PROVIDER);
+        } else {
+            // Default: both USER and SERVICE_PROVIDER (exclude admin roles)
+            roles = Arrays.asList(Role.USER, Role.SERVICE_PROVIDER);
+        }
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+
+        Page<User> userPage;
+        boolean hasSearch = search != null && !search.trim().isEmpty();
+        Boolean isActive = null;
+        if ("active".equalsIgnoreCase(statusFilter)) isActive = true;
+        else if ("disabled".equalsIgnoreCase(statusFilter)) isActive = false;
+
+        if (hasSearch && isActive != null) {
+            userPage = userRepository.searchByRolesAndQueryAndStatus(roles, search.trim(), isActive, pageable);
+        } else if (hasSearch) {
+            userPage = userRepository.searchByRolesAndQuery(roles, search.trim(), pageable);
+        } else if (isActive != null) {
+            userPage = userRepository.findByRoleInAndIsActive(roles, isActive, pageable);
+        } else {
+            userPage = userRepository.findByRoleIn(roles, pageable);
+        }
+
+        List<UserProfileResponse> userResponses = userPage.getContent().stream()
+                .map(user -> new UserProfileResponse(
+                        user.getId(),
+                        user.getEmail(),
+                        user.getPhoneNumber(),
+                        user.getFullName(),
+                        user.getRole(),
+                        user.getIsActive(),
+                        user.getIsEmailVerified(),
+                        user.getIsPhoneVerified(),
+                        user.getCreatedAt(),
+                        user.getUpdatedAt(),
+                        user.getLastLoginAt(),
+                        user.getPasswordHash() != null && !user.getPasswordHash().isBlank()
+                ))
+                .collect(Collectors.toList());
+
+        return new AdminUserListResponse(
+                userResponses,
+                userPage.getNumber(),
+                userPage.getSize(),
+                userPage.getTotalElements(),
+                userPage.getTotalPages()
+        );
+    }
+
+    /**
+     * Get a single user by ID.
+     * Admin-only operation.
+     */
+    public User getUserById(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
     }
 
     @Transactional

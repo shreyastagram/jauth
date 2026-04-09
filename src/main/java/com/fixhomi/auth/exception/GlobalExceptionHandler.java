@@ -36,9 +36,10 @@ public class GlobalExceptionHandler {
         // Parse structured error codes: "CODE:ROLE:message"
         if (rawMessage != null && rawMessage.contains(":")) {
             String[] parts = rawMessage.split(":", 3);
-            if (parts.length == 3 && (parts[0].equals("ROLE_CONFLICT") 
-                || parts[0].equals("NOT_REGISTERED") 
-                || parts[0].equals("ALREADY_REGISTERED"))) {
+            if (parts.length == 3 && (parts[0].equals("ROLE_CONFLICT")
+                || parts[0].equals("NOT_REGISTERED")
+                || parts[0].equals("ALREADY_REGISTERED")
+                || parts[0].equals("EMAIL_REQUIRED"))) {
                 code = parts[0];
                 existingRole = parts[1];
                 userMessage = parts[2];
