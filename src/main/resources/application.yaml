@@ -120,15 +120,14 @@ fixhomi:
     email:
       expiration-hours: 24
       rate-limit-minutes: 5
-      # IMPORTANT: Use deployed Render URL for email links so they work on any device
-      # The verification endpoint runs on Render, not localhost
-      base-url: ${FIXHOMI_BASE_URL:https://jauth.onrender.com}
-    
+      # IMPORTANT: Use production URL for email links so they work on any device
+      base-url: ${FIXHOMI_BASE_URL:https://auth.fixhomi.com}
+
     # Password reset settings
     password-reset:
       expiration-hours: 1
       rate-limit-minutes: 5
-      base-url: ${FIXHOMI_FRONTEND_URL:https://jauth.onrender.com}
+      base-url: ${FIXHOMI_FRONTEND_URL:https://auth.fixhomi.com}
   
   # Notification services configuration
   notification:
