@@ -20,10 +20,10 @@ spring:
     password: ${DATABASE_PASSWORD}
     driver-class-name: org.postgresql.Driver
     
-    # Connection pool settings (HikariCP) — tuned for Neon serverless PostgreSQL
+    # Connection pool settings (HikariCP) — tuned for Neon Launch plan
     hikari:
-      maximum-pool-size: 5        # Neon free tier has connection limits
-      minimum-idle: 2             # Keep 2 idle connections ready
+      maximum-pool-size: 25       # Neon Launch plan supports higher concurrency
+      minimum-idle: 5             # Keep 5 idle connections ready
       idle-timeout: 30000         # 30 seconds
       connection-timeout: 30000   # 30 seconds (gives Neon cold-start time)
       max-lifetime: 180000        # 3 minutes (well under Neon's ~5 min kill)
@@ -126,12 +126,12 @@ fixhomi:
     email:
       expiration-hours: 24
       rate-limit-minutes: 5
-      # Use Render deployment URL for email verification links
-      base-url: ${FIXHOMI_BASE_URL:https://jauth.onrender.com}
+      # Use production URL for email verification links
+      base-url: ${FIXHOMI_BASE_URL:https://auth.fixhomi.com}
     password-reset:
       expiration-hours: 1
       rate-limit-minutes: 5
-      base-url: ${FIXHOMI_FRONTEND_URL:https://jauth.onrender.com}
+      base-url: ${FIXHOMI_FRONTEND_URL:https://auth.fixhomi.com}
   
   notification:
     email:
