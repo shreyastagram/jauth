@@ -16,7 +16,11 @@ import com.fixhomi.auth.exception.InvalidPasswordException;
 import com.fixhomi.auth.exception.InvalidRoleException;
 import com.fixhomi.auth.exception.ResourceNotFoundException;
 import com.fixhomi.auth.repository.DeleteAccountOtpRepository;
+import com.fixhomi.auth.repository.LoginLockoutRepository;
+import com.fixhomi.auth.repository.RefreshTokenRepository;
+import com.fixhomi.auth.repository.TrustedDeviceRepository;
 import com.fixhomi.auth.repository.UserRepository;
+import com.fixhomi.auth.repository.UserSessionRepository;
 import com.fixhomi.auth.service.notification.SmsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,6 +64,18 @@ public class UserService {
 
     @Autowired
     private RefreshTokenService refreshTokenService;
+
+    @Autowired
+    private RefreshTokenRepository refreshTokenRepository;
+
+    @Autowired
+    private TrustedDeviceRepository trustedDeviceRepository;
+
+    @Autowired
+    private UserSessionRepository userSessionRepository;
+
+    @Autowired
+    private LoginLockoutRepository loginLockoutRepository;
 
     @Autowired
     private SmsService smsService;
@@ -483,6 +499,31 @@ public class UserService {
         logger.info("Account deleted for user ID: {}", userId);
 
         return new MessageResponse("Account deleted successfully");
+    }
+
+    /**
+     * Admin-only hard delete: permanently removes the user row and all
+     * child records (refresh tokens, trusted devices, sessions, delete-OTPs,
+     * login lockouts). Irreversible — intended for cleaning up tombstoned
+     * accounts where compliance retention is not required.
+     */
+    @Transactional
+    public MessageResponse hardDeleteUserById(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+
+        int tokens = refreshTokenRepository.deleteAllByUserId(userId);
+        int devices = trustedDeviceRepository.deleteAllByUserId(userId);
+        int sessions = userSessionRepository.deleteAllByUserId(userId);
+        int otps = deleteAccountOtpRepository.deleteAllByUserId(userId);
+        int lockouts = loginLockoutRepository.deleteAllByUserId(userId);
+
+        userRepository.delete(user);
+
+        logger.warn("HARD DELETE — user ID {} (email: {}). Removed: {} tokens, {} devices, {} sessions, {} delete-OTPs, {} lockouts.",
+            userId, user.getEmail(), tokens, devices, sessions, otps, lockouts);
+
+        return new MessageResponse("User permanently deleted");
     }
 
     private void performSoftDelete(User user, String reason) {

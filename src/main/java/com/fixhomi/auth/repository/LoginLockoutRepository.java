@@ -28,4 +28,9 @@ public interface LoginLockoutRepository extends JpaRepository<LoginLockout, Long
     @Query("DELETE FROM LoginLockout l WHERE l.lockedUntil IS NOT NULL AND l.lockedUntil < :cutoff " +
            "OR (l.lockedUntil IS NULL AND l.lastAttemptAt < :cutoff)")
     int deleteExpiredLockouts(@Param("cutoff") LocalDateTime cutoff);
+
+    /** Hard-delete all lockout rows for a user. Used by admin hard-delete. */
+    @Modifying
+    @Query("DELETE FROM LoginLockout l WHERE l.userId = :userId")
+    int deleteAllByUserId(@Param("userId") Long userId);
 }

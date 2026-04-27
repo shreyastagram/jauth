@@ -2,6 +2,7 @@ package com.fixhomi.auth.controller;
 
 import com.fixhomi.auth.dto.AdminCreateUserRequest;
 import com.fixhomi.auth.dto.AdminUserListResponse;
+import com.fixhomi.auth.dto.MessageResponse;
 import com.fixhomi.auth.dto.UpdateUserStatusRequest;
 import com.fixhomi.auth.dto.UserProfileResponse;
 import com.fixhomi.auth.entity.User;
@@ -115,6 +116,22 @@ public class AdminUserController {
                 user.getLastLoginAt(),
                 user.getPasswordHash() != null && !user.getPasswordHash().isBlank()
         );
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Permanently delete a user and all child records (refresh tokens, trusted
+     * devices, sessions, delete-OTPs, login lockouts). Irreversible.
+     *
+     * DELETE /api/admin/users/{userId}
+     *
+     * Access: ADMIN or IT_ADMIN only. The upstream admin panel additionally
+     * gates this with a "super admin" check before calling through.
+     */
+    @DeleteMapping("/{userId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'IT_ADMIN')")
+    public ResponseEntity<MessageResponse> hardDeleteUser(@PathVariable Long userId) {
+        MessageResponse response = userService.hardDeleteUserById(userId);
         return ResponseEntity.ok(response);
     }
 }

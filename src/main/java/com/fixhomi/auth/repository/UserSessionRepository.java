@@ -77,4 +77,11 @@ public interface UserSessionRepository extends JpaRepository<UserSession, Long> 
      */
     @Query("SELECT CASE WHEN COUNT(s) > 0 THEN true ELSE false END FROM UserSession s WHERE s.user = :user AND s.deviceId = :deviceId AND s.isTrusted = true AND s.isActive = true")
     boolean isDeviceTrusted(@Param("user") User user, @Param("deviceId") String deviceId);
+
+    /**
+     * Hard-delete all sessions for a specific user ID. Used by admin hard-delete.
+     */
+    @Modifying
+    @Query("DELETE FROM UserSession s WHERE s.user.id = :userId")
+    int deleteAllByUserId(@Param("userId") Long userId);
 }

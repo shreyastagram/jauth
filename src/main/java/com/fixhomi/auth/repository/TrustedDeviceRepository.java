@@ -57,4 +57,11 @@ public interface TrustedDeviceRepository extends JpaRepository<TrustedDevice, Lo
     @Modifying
     @Query("UPDATE TrustedDevice d SET d.lastUsedAt = CURRENT_TIMESTAMP WHERE d.user = :user AND d.deviceId = :deviceId")
     int updateLastUsed(@Param("user") User user, @Param("deviceId") String deviceId);
+
+    /**
+     * Hard-delete all trusted devices for a specific user ID. Used by admin hard-delete.
+     */
+    @Modifying
+    @Query("DELETE FROM TrustedDevice d WHERE d.user.id = :userId")
+    int deleteAllByUserId(@Param("userId") Long userId);
 }
