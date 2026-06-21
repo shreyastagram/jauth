@@ -1,6 +1,7 @@
 # Phone-Number + OTP Signup — Implementation Plan & Tracker
 
-**Status:** Scope locked (USERS ONLY). Phase 0 pre-flight validation DONE. Awaiting go-ahead to edit code.
+**Status:** Phase 0 CODED + pushed to branch `feature/phone-signup-users`. Awaiting Mac compile + test.
+Not compiled locally (no toolchain on this box) — first Mac step is `./mvnw compile`.
 **Last updated:** 2026-06-22
 
 > ⚠️ **Before doing ANY work on this, read [`AGENTS.md`](./AGENTS.md).**
@@ -65,7 +66,7 @@ phone normalization, Mongo sync + retry/self-heal, phone-OTP login.
 
 ---
 
-## 4. Phase 0 — Identity refactor (email → userId) + email nullable  `[ ]`
+## 4. Phase 0 — Identity refactor (email → userId) + email nullable  `[~]` (coded, pending Mac verify)
 **The backbone. Ships invisibly (no UI change). Existing flows must behave identically. Only phase with regression risk.**
 
 ### Pre-flight validation (do FIRST, before editing) `[~]`
@@ -89,24 +90,23 @@ phone normalization, Mongo sync + retry/self-heal, phone-OTP login.
 > Resolve the authenticated user inside JAuth's filter by the existing **`userId` claim**, not the subject.
 > This avoids breaking NoeFix `adminAuthMiddleware` / `TokenValidationService` and keeps legacy tokens valid.
 
-- [ ] **0.1** `security/JwtAuthenticationFilter.java` — resolve by `userId` claim (`findById`); fallback to
+- [x] **0.1** `security/JwtAuthenticationFilter.java` — resolve by `userId` claim (`findById`); fallback to
       `findByEmail(subject)` for legacy tokens missing the claim; set principal = **userId string**. *(blast radius: every authed request)*
-- [ ] **0.2** `security/JwtService.java` — leave `setSubject(email)` AS-IS; just tolerate a null email when building
-      tokens for phone-only users (`userId` claim already present). No subject change.
-- [ ] **0.3** `controller/UserController.java` — `getCurrentUserEmail()` → `getCurrentUserId()` (parse principal → Long); pass userId down.
-- [ ] **0.4** `service/UserService.java` — `getUserProfile`, `updateProfile`, `changePassword`,
+- [x] **0.2** `security/JwtService.java` — left `setSubject(email)` AS-IS (JJWT drops a null subject safely); no change needed.
+- [x] **0.3** `controller/UserController.java` — `getCurrentUserEmail()` → `getCurrentUserId()` (parse principal → Long); pass userId down.
+- [x] **0.4** `service/UserService.java` — `getUserProfile`, `updateProfile`, `changePassword`,
       `requestDeleteAccountOtp`, `deleteAccountWithOtp`, `isUserAuthorizedForDeletion` → take `Long userId`; `findByEmail` → `findById`.
-- [ ] **0.5** `controller/SessionController.java:213` — principal → userId; resolve current user by id, not `findByEmail`.
-- [ ] **0.6** `controller/VerificationController.java:64/82/99` — principal → userId; pass userId to the verification services.
-- [ ] **0.7** `service/EmailVerificationService.java` + `service/PhoneVerificationService.java` — accept `userId`
+- [x] **0.5** `controller/SessionController.java` — principal → userId; resolve current user by id, not `findByEmail`.
+- [x] **0.6** `controller/VerificationController.java` — principal → userId; pass userId to the verification services.
+- [x] **0.7** `service/EmailVerificationService.java` + `service/PhoneVerificationService.java` — accept `userId`
       (or a resolved `User`) instead of `userEmail`, so the logged-in verify-email / verify-phone flows work for
       phone-only users. `sendVerificationEmail` must **fail gracefully when email is NULL** (clear error, no crash —
       ties to Phase 3 "add email first"). *(Email-input lookups in login / password-reset / Google / Apple stay keyed by email — unchanged.)*
 - [x] **0.8** `service/TokenValidationService.java` — **confirmed NO change needed.** Returns `userId` + `getSubject()`
       (email) separately; with subject kept = email, NoeFix still gets `userId`; phone-only users return `email=null` (NoeFix uses userId).
-- [ ] **0.9** `entity/User.java` — make `email` nullable (drop `@NotBlank` + `nullable=false`); keep unique via partial index.
-      Phone-only signup must set email to **NULL, never `""`** (see Empty-email rule §1).
-- [ ] **0.10** DB migration (prod, applied manually — Hibernate `update` won't drop NOT NULL):
+- [x] **0.9** `entity/User.java` — `email` made nullable (dropped `@NotBlank` + `nullable=false`); unique index kept
+      (Postgres/H2 allow multiple NULLs under a unique index, so no partial index needed as long as we store NULL not `""`).
+- [ ] **0.10** DB migration (prod, applied manually — Hibernate `update` won't drop NOT NULL). **NOT YET APPLIED:**
       ```sql
       ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
       DROP INDEX IF EXISTS idx_email;
@@ -234,3 +234,9 @@ phone normalization, Mongo sync + retry/self-heal, phone-OTP login.
   Booking gate check: verification gates found are PROVIDER-side; no user-side email-verified block seen in main booking
   controller (consistent with user: bookings = phone-verified only). → Phase 3 demoted to OPTIONAL/after-Phase-1-2;
   added Phase 1 pre-flight item to confirm exact user-booking path. OTP-vs-link decision left PENDING. No code changed.
+- 2026-06-22 — Decisions locked by user: email **updatable**, verification via **link** (not OTP); Phase 3 IN scope.
+  Booking-gate cross-check PASSED (read `createRequest` — no user-side email gate). Approved Q1 (re-key) + Q2 (migration).
+- 2026-06-22 — **Phase 0 CODED (8 files) + committed/pushed** to branch `feature/phone-signup-users`
+  (off `feature/apple_devlopment`; NOT `main`). Not compiled on this box (Java/Maven toolchain mismatch — only JDK8 on
+  PATH, only-script mvnw needs download). **Compile + functional test happens on Mac.** Migration 0.10 NOT yet applied.
+  ⚠️ FLAG to user: base branch is `feature/apple_devlopment`, not `main` — confirm that's the intended base.
