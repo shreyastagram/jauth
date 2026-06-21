@@ -54,9 +54,14 @@ public class EmailVerificationService {
      * @return masked email address
      */
     @Transactional
-    public String sendVerificationEmail(String userEmail) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "email", userEmail));
+    public String sendVerificationEmail(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+
+        // Phone-only users have no email yet — fail clearly instead of NPE-ing downstream.
+        if (user.getEmail() == null || user.getEmail().isBlank()) {
+            throw new VerificationException("No email address on this account. Please add an email first.");
+        }
 
         if (user.getIsEmailVerified()) {
             throw new VerificationException("Email is already verified");

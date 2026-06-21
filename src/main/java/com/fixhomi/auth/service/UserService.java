@@ -89,9 +89,9 @@ public class UserService {
     @Value("${fixhomi.verification.delete-otp.max-attempts:3}")
     private int deleteOtpMaxAttempts;
 
-    public UserProfileResponse getUserProfile(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
+    public UserProfileResponse getUserProfile(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
         return new UserProfileResponse(
                 user.getId(),
@@ -110,9 +110,9 @@ public class UserService {
     }
 
     @Transactional
-    public MessageResponse changePassword(String email, ChangePasswordRequest request) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
+    public MessageResponse changePassword(Long userId, ChangePasswordRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
         boolean hasExistingPassword = user.getPasswordHash() != null && !user.getPasswordHash().isBlank();
 
@@ -132,19 +132,19 @@ public class UserService {
         userRepository.save(user);
 
         String action = hasExistingPassword ? "changed" : "set";
-        logger.info("Password {} successfully for user: {}", action, email);
+        logger.info("Password {} successfully for user: userId={}", action, userId);
 
         return new MessageResponse("Password " + action + " successfully");
     }
 
     @Transactional
-    public UserProfileResponse updateProfile(String email, UpdateProfileRequest request) {
-        final User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
+    public UserProfileResponse updateProfile(Long userId, UpdateProfileRequest request) {
+        final User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
         if (request.getFullName() != null && !request.getFullName().isBlank()) {
             user.setFullName(request.getFullName().trim());
-            logger.debug("Updating fullName for user: {}", email);
+            logger.debug("Updating fullName for user: userId={}", userId);
         }
 
         if (request.getPhoneNumber() != null) {
@@ -178,14 +178,14 @@ public class UserService {
 
             if (phoneIsChanging) {
                 user.setIsPhoneVerified(false);
-                logger.info("Phone number changed for user: {} — phone verification reset", email);
+                logger.info("Phone number changed for user: userId={} — phone verification reset", userId);
             }
 
-            logger.debug("Updating phoneNumber for user: {}", email);
+            logger.debug("Updating phoneNumber for user: userId={}", userId);
         }
 
         User savedUser = userRepository.save(user);
-        logger.info("Profile updated successfully for user: {}", email);
+        logger.info("Profile updated successfully for user: userId={}", userId);
 
         return new UserProfileResponse(
                 savedUser.getId(),
@@ -383,9 +383,9 @@ public class UserService {
      * OTP is generated locally, persisted to database, and sent via SMS.
      */
     @Transactional
-    public String requestDeleteAccountOtp(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
+    public String requestDeleteAccountOtp(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
         String phoneNumber = user.getPhoneNumber();
         if (phoneNumber == null || phoneNumber.isBlank()) {
@@ -413,8 +413,8 @@ public class UserService {
             throw new RuntimeException("Failed to send OTP. Please try again later.");
         }
 
-        logger.info("Delete account OTP sent for user: {} to phone: {}",
-                email, maskPhoneNumber(phoneNumber));
+        logger.info("Delete account OTP sent for user: userId={} to phone: {}",
+                userId, maskPhoneNumber(phoneNumber));
 
         return maskPhoneNumber(phoneNumber);
     }
@@ -424,9 +424,9 @@ public class UserService {
      * OTP is verified from database.
      */
     @Transactional
-    public MessageResponse deleteAccountWithOtp(String email, DeleteAccountRequest request) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
+    public MessageResponse deleteAccountWithOtp(Long userId, DeleteAccountRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
         String phoneNumber = user.getPhoneNumber();
         if (phoneNumber == null || phoneNumber.isBlank()) {
@@ -458,7 +458,7 @@ public class UserService {
         if (!MessageDigest.isEqual(otpEntry.getOtp().getBytes(StandardCharsets.UTF_8),
                 request.getOtp().getBytes(StandardCharsets.UTF_8))) {
             deleteAccountOtpRepository.save(otpEntry);
-            logger.warn("Invalid OTP attempt for account deletion. User: {}", email);
+            logger.warn("Invalid OTP attempt for account deletion. User: userId={}", userId);
             throw new InvalidPasswordException("Invalid or expired OTP. Please request a new code.");
         }
 
@@ -470,7 +470,7 @@ public class UserService {
         String reason = request.getReason() != null ? request.getReason() : "User requested deletion";
         performSoftDelete(user, reason);
 
-        logger.info("Account deleted for user: {} (ID: {}) - OTP verified", email, user.getId());
+        logger.info("Account deleted for user: userId={} - OTP verified", user.getId());
 
         return new MessageResponse("Account deleted successfully. We're sorry to see you go.");
     }
@@ -483,8 +483,8 @@ public class UserService {
         return "******" + lastFour;
     }
 
-    public boolean isUserAuthorizedForDeletion(String currentEmail, Long targetUserId) {
-        User currentUser = userRepository.findByEmail(currentEmail).orElse(null);
+    public boolean isUserAuthorizedForDeletion(Long currentUserId, Long targetUserId) {
+        User currentUser = userRepository.findById(currentUserId).orElse(null);
         if (currentUser == null) return false;
         if (currentUser.getId().equals(targetUserId)) return true;
         return currentUser.getRole() == Role.ADMIN;

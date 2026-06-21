@@ -26,9 +26,10 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotBlank(message = "Email is required")
+    // Email is OPTIONAL — phone-only signup users have no email (stored as NULL, never "").
+    // Unique index still applies; Postgres/H2 allow multiple NULLs under a unique index.
     @Email(message = "Invalid email format")
-    @Column(nullable = false, unique = true, length = 100)
+    @Column(unique = true, length = 100)
     private String email;
 
     @Column(name = "phone_number", length = 20)

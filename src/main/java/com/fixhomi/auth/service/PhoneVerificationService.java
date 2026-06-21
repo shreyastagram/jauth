@@ -60,9 +60,9 @@ public class PhoneVerificationService {
      * OTP is generated locally and sent via SMS provider.
      */
     @Transactional
-    public String sendOtp(String userEmail) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "email", userEmail));
+    public String sendOtp(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
         if (user.getPhoneNumber() == null || user.getPhoneNumber().isBlank()) {
             throw new VerificationException("No phone number registered for this account");
@@ -100,8 +100,8 @@ public class PhoneVerificationService {
             throw new VerificationException("Failed to send OTP. Please try again.");
         }
 
-        logger.info("Phone verification OTP sent for user: {} (phone: {})",
-                userEmail, maskPhoneNumber(phoneNumber));
+        logger.info("Phone verification OTP sent for user: userId={} (phone: {})",
+                userId, maskPhoneNumber(phoneNumber));
 
         return maskPhoneNumber(phoneNumber);
     }
@@ -111,9 +111,9 @@ public class PhoneVerificationService {
      * OTP is verified locally.
      */
     @Transactional
-    public void verifyOtp(String userEmail, String otpCode) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "email", userEmail));
+    public void verifyOtp(Long userId, String otpCode) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
         if (user.getPhoneNumber() == null || user.getPhoneNumber().isBlank()) {
             throw new VerificationException("No phone number registered for this account");
@@ -166,7 +166,7 @@ public class PhoneVerificationService {
         // Send success notification
         smsService.sendVerificationSuccess(phoneNumber);
 
-        logger.info("Phone verified successfully for user: {}", userEmail);
+        logger.info("Phone verified successfully for user: userId={}", userId);
     }
 
     /**

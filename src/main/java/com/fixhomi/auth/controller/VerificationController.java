@@ -61,8 +61,8 @@ public class VerificationController {
      */
     @PostMapping("/otp/send")
     public ResponseEntity<VerificationResponse> sendOtp(Authentication authentication) {
-        String email = authentication.getName();
-        String maskedPhone = phoneVerificationService.sendOtp(email);
+        Long userId = Long.valueOf(authentication.getName());
+        String maskedPhone = phoneVerificationService.sendOtp(userId);
         
         return ResponseEntity.ok(VerificationResponse.success(
                 "OTP sent successfully", maskedPhone));
@@ -79,8 +79,8 @@ public class VerificationController {
             Authentication authentication,
             @Valid @RequestBody VerifyOtpRequest request) {
         
-        String email = authentication.getName();
-        phoneVerificationService.verifyOtp(email, request.getOtp());
+        Long userId = Long.valueOf(authentication.getName());
+        phoneVerificationService.verifyOtp(userId, request.getOtp());
         
         return ResponseEntity.ok(VerificationResponse.success(
                 "Phone number verified successfully"));
@@ -96,8 +96,8 @@ public class VerificationController {
      */
     @PostMapping("/email/send-verification")
     public ResponseEntity<VerificationResponse> sendVerificationEmail(Authentication authentication) {
-        String email = authentication.getName();
-        String maskedEmail = emailVerificationService.sendVerificationEmail(email);
+        Long userId = Long.valueOf(authentication.getName());
+        String maskedEmail = emailVerificationService.sendVerificationEmail(userId);
         
         return ResponseEntity.ok(VerificationResponse.success(
                 "Verification email sent successfully", maskedEmail));

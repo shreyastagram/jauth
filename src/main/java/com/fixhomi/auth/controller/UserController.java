@@ -31,8 +31,8 @@ public class UserController {
      */
     @GetMapping("/me")
     public ResponseEntity<UserProfileResponse> getCurrentUserProfile() {
-        String email = getCurrentUserEmail();
-        UserProfileResponse profile = userService.getUserProfile(email);
+        Long userId = getCurrentUserId();
+        UserProfileResponse profile = userService.getUserProfile(userId);
         return ResponseEntity.ok(profile);
     }
 
@@ -45,8 +45,8 @@ public class UserController {
      */
     @PutMapping("/profile")
     public ResponseEntity<UserProfileResponse> updateProfile(@Valid @RequestBody UpdateProfileRequest request) {
-        String email = getCurrentUserEmail();
-        UserProfileResponse profile = userService.updateProfile(email, request);
+        Long userId = getCurrentUserId();
+        UserProfileResponse profile = userService.updateProfile(userId, request);
         return ResponseEntity.ok(profile);
     }
 
@@ -59,8 +59,8 @@ public class UserController {
      */
     @PostMapping("/change-password")
     public ResponseEntity<MessageResponse> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
-        String email = getCurrentUserEmail();
-        MessageResponse response = userService.changePassword(email, request);
+        Long userId = getCurrentUserId();
+        MessageResponse response = userService.changePassword(userId, request);
         return ResponseEntity.ok(response);
     }
 
@@ -77,8 +77,8 @@ public class UserController {
      */
     @PostMapping("/delete-account/request-otp")
     public ResponseEntity<MessageResponse> requestDeleteAccountOtp() {
-        String email = getCurrentUserEmail();
-        String maskedPhone = userService.requestDeleteAccountOtp(email);
+        Long userId = getCurrentUserId();
+        String maskedPhone = userService.requestDeleteAccountOtp(userId);
         return ResponseEntity.ok(new MessageResponse(
             "OTP sent to " + maskedPhone + ". Enter the code to confirm account deletion."
         ));
@@ -96,8 +96,8 @@ public class UserController {
      */
     @DeleteMapping("/account")
     public ResponseEntity<MessageResponse> deleteAccount(@Valid @RequestBody DeleteAccountRequest request) {
-        String email = getCurrentUserEmail();
-        MessageResponse response = userService.deleteAccountWithOtp(email, request);
+        Long userId = getCurrentUserId();
+        MessageResponse response = userService.deleteAccountWithOtp(userId, request);
         return ResponseEntity.ok(response);
     }
 
@@ -118,9 +118,9 @@ public class UserController {
             return ResponseEntity.status(401).body(new MessageResponse("Authentication required"));
         }
 
-        String currentEmail = authentication.getName();
+        Long currentUserId = Long.valueOf(authentication.getName());
         // Verify the authenticated user owns this account or is an admin
-        boolean isAuthorized = userService.isUserAuthorizedForDeletion(currentEmail, userId);
+        boolean isAuthorized = userService.isUserAuthorizedForDeletion(currentUserId, userId);
         if (!isAuthorized) {
             return ResponseEntity.status(403).body(new MessageResponse("Not authorized to delete this account"));
         }
@@ -132,8 +132,8 @@ public class UserController {
     /**
      * Get current authenticated user's email from SecurityContext.
      */
-    private String getCurrentUserEmail() {
+    private Long getCurrentUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        return authentication.getName(); // email is set as principal in JwtAuthenticationFilter
+        return Long.valueOf(authentication.getName()); // userId is set as principal in JwtAuthenticationFilter
     }
 }
