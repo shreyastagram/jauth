@@ -1,9 +1,12 @@
 # Phone-Number + OTP Signup — Implementation Plan & Tracker
 
-**Status:** Phase 0 DONE + verified. Phase 1 DONE + fully verified end-to-end (NoeFix → JAuth → Mongo via
-`mongodb-memory-server`; 22 assertions across 5 scenarios PASSED). Backend ready; pending prod deploy steps =
-the §4.0.10 Postgres ALTER + Mongo `email` sparse-unique index rebuild. Nothing committed yet.
-Branch `feature/phone-signup-users` (JAuth) / `phone-signup-providers` (NoeFix — user noted name to be fixed).
+**Status:** Phase 0 + Phase 1 + Phase 2 all coded & committed.
+- JAuth `feature/phone-signup-users`: code commit `c752c96` + tracker commit `0cce23d`.
+- NoeFix `phone-signup-providers` (name to be fixed): code commit `bdc320c`.
+- RenFi `feature/phone-signup-users-ui` (cut off `backgroun-tracking-update-fe`): commit `fbafaed`.
+Backend e2e (22 assertions) GREEN. UI committed; device/Metro smoke deferred to user.
+Pending prod deploy steps = §4.0.10 Postgres ALTER + Mongo `email` sparse-unique index rebuild.
+Nothing pushed.
 **Last updated:** 2026-06-23
 
 > ⚠️ **Before doing ANY work on this, read [`AGENTS.md`](./AGENTS.md).**
@@ -261,17 +264,30 @@ phone normalization, Mongo sync + retry/self-heal, phone-OTP login.
 
 ---
 
-## 6. Phase 2 — RenFi UI (USER screens only)  `[ ]`
-> 🔒 Touch **user** registration screens only (`RegisterChoice` user flow / `RegisterScreen` /
-> `UserAuthScreen`). Do **NOT** modify `ProviderRegisterScreen`, `ProviderAuthScreen`, or any provider route.
-- [ ] User choice screen: add "Continue with phone number" (placement TBD by product).
-- [ ] New phone-signup screen (name + phone, reuse `PhoneInput`); reuse `OTPVerifyScreen` with `context:'signup'`.
-- [ ] `services/authService.js` — `sendPhoneSignupOtp()` / `verifyPhoneSignupOtp()`.
-- [ ] `config/api.js` — add `OTP_SIGNUP` endpoints.
-- [ ] i18n strings. (Login unchanged — phone-OTP login already works.)
-- [ ] Style match (user accent): cards `borderRadius:14`, `#f67c16`, focus `#2563EB`, error `#EF4444`.
-      Copy: "Continue with phone number", "Enter your mobile number", "We'll send you a verification code",
-      "Enter the 6-digit code", "Verify", "Resend code".
+## 6. Phase 2 — RenFi UI (USER screens only)  `[x]` (coded + committed; awaits Metro/device smoke)
+> 🔒 Touch **user** registration screens only. Providers remain 100% untouched: `RegisterChoice` is shared,
+> but the new "Continue with phone" card is gated on an optional `onPickPhone` prop that only
+> `RegisterScreen` passes — `ProviderRegisterScreen` does not, so the provider flow renders identically.
+- [x] User choice screen — added "Continue with phone number" card with blue `#2563EB` accent + matching icon circle.
+- [x] New `src/screens/PhoneSignupScreen.jsx` (name + phone, reuses `PhoneInput`).
+- [x] `OTPVerifyScreen` reused with new optional `context:'signup'` + `fullName` + `signupExtras` props; existing
+      login flow is the default branch and stays untouched.
+- [x] `services/authService.js` — `sendPhoneSignupOtp(phone, fullName)` + `verifyPhoneSignupOtp(phone, otp, extras)`.
+      Both go via `apiClient` (NoeFix) so the Mongo profile upsert runs.
+- [x] `config/api.js` — `OTP_SIGNUP.PHONE_SEND_OTP` + `OTP_SIGNUP.PHONE_VERIFY` (NoeFix paths).
+- [x] `usePersistedAuthFlow.js` — `PHONE_SIGNUP` mode added; OTP-verify persistence already covers this flow.
+- [x] i18n strings added in `en.js`, `hi.js`, `mr.js` (continueWithPhone(+Sub), phoneSignupTitle/Subtitle/Info,
+      fullNameRequired, fullNameTooLong). Existing `fullName` / `fullNamePlaceholder` / `phoneAlreadyRegistered`
+      keys reused as-is (single source of truth).
+- [x] Style match: orange brand accent (`#f67c16`) on title; phone card uses blue (`#2563EB`) to differentiate
+      from Manual (orange), Google (rainbow), Apple (black).
+- [x] Lint baseline confirmed: no new categories of errors introduced (the 2 new useCallback
+      exhaustive-deps warnings in `UserAuthScreen` follow the same pre-existing pattern the project tolerates;
+      i18n dupe-keys flagged are pre-existing on HEAD).
+- [ ] **DEFERRED — needs device:** Metro/iOS/Android smoke (open the app, register flow, tap phone card,
+      enter name+phone, get OTP from server log / SMS, verify, confirm landing on UserHome). Reserved for the user.
+
+Committed on branch `feature/phone-signup-users-ui` as `fbafaed` (11 files, +503/-10).
 
 ## 7. Phase 3 — Add-email-later + verification (phone-only USERS)  `[ ]`
 > **Now OPTIONAL / nice-to-have.** Bookings require **phone-verified only** (email no longer gates bookings),
