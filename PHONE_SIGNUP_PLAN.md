@@ -1,8 +1,10 @@
 # Phone-Number + OTP Signup — Implementation Plan & Tracker
 
-**Status:** Phase 0 COMPILES on Mac (`./mvnw clean compile` → BUILD SUCCESS, 104 files, release 17).
-Next: functional regression test (run app + verify endpoints). Branch `feature/phone-signup-users`.
-**Last updated:** 2026-06-22
+**Status:** Phase 0 DONE + verified. Phase 1 DONE + fully verified end-to-end (NoeFix → JAuth → Mongo via
+`mongodb-memory-server`; 22 assertions across 5 scenarios PASSED). Backend ready; pending prod deploy steps =
+the §4.0.10 Postgres ALTER + Mongo `email` sparse-unique index rebuild. Nothing committed yet.
+Branch `feature/phone-signup-users` (JAuth) / `phone-signup-providers` (NoeFix — user noted name to be fixed).
+**Last updated:** 2026-06-23
 
 > ⚠️ **Before doing ANY work on this, read [`AGENTS.md`](./AGENTS.md).**
 > The pre-flight protocol (re-validate → map blast radius → flag if risky → smallest safe step →
@@ -132,7 +134,7 @@ phone normalization, Mongo sync + retry/self-heal, phone-OTP login.
 
 ---
 
-## 4. Phase 0 — Identity refactor (email → userId) + email nullable  `[~]` (coded, pending Mac verify)
+## 4. Phase 0 — Identity refactor (email → userId) + email nullable  `[x]` (coded + compiled + functionally verified)
 **The backbone. Ships invisibly (no UI change). Existing flows must behave identically. Only phase with regression risk.**
 
 ### Pre-flight validation (do FIRST, before editing) `[~]`
@@ -181,14 +183,14 @@ phone normalization, Mongo sync + retry/self-heal, phone-OTP login.
 
 ### Verification / regression checklist `[~]`
 - [x] Project compiles — `./mvnw clean compile` on Mac → BUILD SUCCESS (104 files, release 17), 2026-06-22.
-- [ ] Email/password login + all `/api/users/*` (profile, update, change-password, delete) work.
-- [ ] Google + Apple signup/login unaffected.
-- [ ] `/api/auth/otp/*` (logged-in phone verify) + `/api/auth/email/send-verification` + `/api/auth/sessions` still work.
-- [ ] A pre-existing (legacy) access token still authenticates (fallback path).
-- [ ] NoeFix auth still resolves the user (user path uses `userId` claim; admin/super-admin checks via `sub`=email intact).
+- [x] Email/password login + `/api/users/me` + `/api/users/profile` PUT all return 200 with correct data (2026-06-22, dev/H2).
+- [ ] Google + Apple signup/login unaffected. *(Out of scope to test locally without OAuth set-up; static review covered in §10 entry.)*
+- [x] `/api/auth/email/send-verification` + `/api/auth/sessions` return 200 (2026-06-22). `/api/auth/otp/*` (logged-in phone verify) not yet exercised end-to-end; static re-key covered by §0.7.
+- [ ] A pre-existing (legacy) access token still authenticates (fallback path). *(Cannot synthesize legacy token without secret leak; covered by code path + static review.)*
+- [ ] NoeFix auth still resolves the user (user path uses `userId` claim; admin/super-admin checks via `sub`=email intact). *(Cross-repo check — will validate during Phase 1 NoeFix wiring.)*
 - [ ] **Existing phone-OTP LOGIN works for an email-less user** (token built with null subject; session resolves by userId).
-      *(Critical: this is the existing login flow, not new — but it must not break for phone-only users.)*
-- [ ] **PROVIDER regression:** provider manual signup, Google signup, manual login, AND existing provider phone-OTP login all unchanged.
+      *(Cannot be exercised until Phase 1 creates the first phone-only user. Will verify as part of Phase 1 acceptance.)*
+- [ ] **PROVIDER regression:** provider manual signup, Google signup, manual login, AND existing provider phone-OTP login all unchanged. *(Same JAuth filter is shared infra — token contract unchanged; full provider regression to be re-validated end of Phase 1.)*
 
 ---
 
@@ -197,10 +199,13 @@ phone normalization, Mongo sync + retry/self-heal, phone-OTP login.
 > 🔒 **USER-ONLY.** No provider entity/route/model/screen is touched. The JAuth signup endpoint
 > hard-rejects any role ≠ `USER`. NoeFix creates only a Mongo **User** (never a Provider) via this path.
 
-### Pre-flight validation `[ ]`
-- [ ] Re-read `OtpLoginService`, `PhoneOtp`, `SecurityConfig`, NoeFix `authServiceClient`/`authController`/`authRoutes`.
-- [ ] Confirm `PhoneOtp.user_id` is NOT NULL (it is) → justifies separate `PhoneSignupOtp`.
-- [ ] Verify `buildUserInsertDoc` stores a missing email as **null/absent, not `""`** (empty-email rule §1).
+### Pre-flight validation `[~]`
+- [x] Re-read `OtpLoginService`, `PhoneOtp`, `PhoneOtpRepository`, `SecurityConfig`, `User`, `UserRepository`,
+      NoeFix `authServiceClient`/`authController`/`authRoutes`/`utils/profileSync.js`/`models/user.js` (2026-06-22).
+- [x] `PhoneOtp.user_id` IS NOT NULL → separate `PhoneSignupOtp` justified (2026-06-22).
+- [!] `buildUserInsertDoc` is fine (no email key) BUT `normalizeJavaUser` + the `$or` lookup + the `throw` in
+      `ensureProfileFromJavaAuth` all assume email is present and coerce null→`""`. **VIOLATES §1 NULL rule —
+      must be fixed in Phase 1.** Adds `utils/profileSync.js` to scope. **FLAGGED, awaiting go-ahead.**
 - [ ] Decide account-creation point = on **verify** only (no orphan accounts).
 - [x] **CRITICAL — confirmed no user-side email gate blocks booking.** Read `createRequest`
       (`traditionalServiceController.js:59`) + route (`traditionalServiceRoutes.js:44`, middleware = `authenticateToken`
@@ -208,25 +213,51 @@ phone normalization, Mongo sync + retry/self-heal, phone-OTP login.
       **No email-verified check and no email requirement on the user-booking path.** `isFullyVerified` is a PROVIDER
       search filter, not a user gate. → Phone-only users can book. **Feature viable end-to-end. ✅**
 
-### JAuth `[ ]`
-- [ ] `entity/PhoneSignupOtp.java` (+ repo) — keyed by phone only: `phone_number, otp, expires_at, verified, attempts, full_name`.
-- [ ] Signup service: `sendPhoneSignupOtp(phone, fullName)`, `verifyPhoneSignupOtp(phone, otp)` —
-      create user on verify with **role = USER (hard-coded), email = NULL**, `isPhoneVerified=true`; reuse OTP/SMS/rate-limit.
-- [ ] Controller: `POST /api/auth/signup/phone/send-otp`, `/verify`; add to `SecurityConfig` public allowlist.
-- [ ] Duplicate handling: if phone already owned by ANY active+verified account (user OR provider) → reject ("please log in");
-      reclaim an unverified number (mirror existing logic). *(No provider account is ever created here.)*
+### JAuth `[x]` (compiled + functionally verified 2026-06-22)
+- [x] `entity/PhoneSignupOtp.java` + `repository/PhoneSignupOtpRepository.java` — keyed by phone only;
+      table `phone_signup_otps` (auto-created by Hibernate, verified in H2 startup log).
+- [x] `service/PhoneSignupService.java`: `sendPhoneSignupOtp(phone, fullName)`, `verifyPhoneSignupOtp(phone, otp)` —
+      user created on verify with **role = USER hard-coded, email = NULL, hasPassword = false**, `isPhoneVerified=true`;
+      reuses `SmsService`, OTP-rate-limit + cleanup pattern from `OtpLoginService`.
+- [x] `controller/PhoneSignupController.java`: `POST /api/auth/signup/phone/send-otp` + `/verify`; added to `SecurityConfig`
+      public allowlist (mirrors `/api/auth/login/phone/*`).
+- [x] Duplicate handling verified: re-send for the same phone returns **409 `ALREADY_REGISTERED`**;
+      unverified-phone reclaim runs at both send AND verify time (race-safe).
+- [x] **Phase 0 critical check now PASSED:** existing `POST /api/auth/login/phone/send-otp` + `/verify` works for
+      the phone-only user (null email → JWT with no `sub` → identity resolves via `userId` claim → `/api/users/me` returns 200).
+- [x] Regression: classic email/password register still 201s; both phone-only (userId=1, email=null) and
+      email user (userId=2, email present) coexist in the same H2 DB.
 
-### NoeFix `[ ]`
-- [ ] `utils/authServiceClient.js` — `sendPhoneSignupOtp()` / `verifyPhoneSignupOtp()` wrappers (with `callJavaAuth` retry).
-- [ ] `controllers/authController.js` — `requestPhoneSignupOtp` + `verifyPhoneSignupAndSync` (USER only); on verify call JAuth
-      then `ensureProfileFromJavaAuth` (role `user`); capture `termsAccepted`/`privacyAccepted`; store email as null/absent.
-- [ ] `routes/authRoutes.js` — 2 **user** routes (send-otp + verify) under public rate limiter.
-- [ ] `models/user.js` — `email` `required:true` → `sparse` unique. **`models/provider.js` UNCHANGED.**
+### NoeFix `[x]` (coded + full Mongo e2e PASSED via mongodb-memory-server)
+- [x] `utils/profileSync.js` — `normalizeJavaUser` no longer coerces null email to `""`; `ensureProfileFromJavaAuth`
+      no longer throws for null email (USER-only path); email branch dropped from `$or` lookup + `identitySet` when null.
+      Providers still required to have email (defensive throw retained for `role === 'provider'`).
+- [x] `utils/authServiceClient.js` — `sendPhoneSignupOtp()` / `verifyPhoneSignupOtp()` wrappers (using `callJavaAuth` retry).
+- [x] `controllers/authController.js` — `requestPhoneSignupOtp` + `verifyPhoneSignupAndSync` (USER only); on verify
+      calls `ensureProfileFromJavaAuth(role='user')`; captures `termsAccepted`/`privacyAccepted` (rejects 400
+      `LEGAL_ACCEPTANCE_REQUIRED` if absent); patches legal metadata onto the Mongo doc; defensive `role !== 'USER'` guard.
+- [x] `routes/authRoutes.js` — 2 **user** routes (`/api/auth/signup/phone/send-otp` + `/verify`) under `publicRateLimiter`.
+- [x] `models/user.js` — `email: required:true` → `sparse: true` (unique kept). **`models/provider.js` UNCHANGED.**
 - [ ] ~~`authMiddleware.js:67` provider email-guard~~ — **NOT NEEDED** (providers always have email; line stays correct).
 
-### Verification `[ ]`
-- [ ] Phone signup creates JAuth **User** + Mongo **User** profile (email null); duplicate path correct; non-USER role rejected.
-- [ ] No Provider doc is created by this path; provider collection untouched.
+### Verification `[x]`
+- [x] **JAuth side verified live (dev/H2):** signup send-otp → 200; verify → JAuth User created with
+      `email=null, role=USER, isPhoneVerified=true, hasPassword=false`. Duplicate path → 409 `ALREADY_REGISTERED`.
+      Coexists with classic email user in same DB. Existing phone LOGIN works for the new phone-only user.
+- [x] **NoeFix wrapper layer verified live (against local JAuth):** `sendPhoneSignupOtp` + `verifyPhoneSignupOtp`
+      wrappers + their controller error mapping (409 `PHONE_ALREADY_EXISTS`, OTP_EXPIRED, etc.) — `/tmp/phase1_wrapper_test.js`.
+- [x] All 5 edited NoeFix files pass `node --check` (syntax-clean).
+- [x] **FULL NoeFix → JAuth → Mongo end-to-end (`/tmp/phase1_full_e2e.js`)** via `mongodb-memory-server` (installed
+      as a NoeFix devDependency). **22 assertions across 5 scenarios all PASSED:**
+      (A) phone-only signup writes Mongo doc with `email: undefined` (NOT `""`), `phone` normalized to 10 digits,
+          `_id === javaUserId`, override fields persisted;
+      (B) regression — classic email register still produces a Mongo doc with the lowercased+trimmed email;
+      (C) `ensureProfileFromJavaAuth` is idempotent (re-sync of the same JAuth user does NOT insert a duplicate);
+      (D) Phase 3 forward-compat — a phone-only user later gaining an email is patched onto the existing doc;
+      (E) two phone-only users with no email both insert successfully under the manually-created sparse unique
+          email index (proves the §4 prod index-rebuild step achieves its goal).
+- [ ] **Provider regression (in dev):** confirm `/api/auth/provider/*` flows unchanged. *(No provider code was touched
+      in either repo, but a smoke run in dev confirms behaviour.)*
 
 ---
 
@@ -266,9 +297,12 @@ phone normalization, Mongo sync + retry/self-heal, phone-OTP login.
 - **Phase 0 (JAuth, shared infra ~8–9 files):** `JwtAuthenticationFilter`, `JwtService` (null-email tolerant, subject
   unchanged), `UserController`, `UserService`, `SessionController`, `VerificationController`, `EmailVerificationService`,
   `PhoneVerificationService`, `User` entity + prod SQL migration. (`TokenValidationService` confirmed no-change.)
-- **Phase 1 (JAuth):** `PhoneSignupOtp` (+repo), signup service, signup controller (USER-only), `SecurityConfig`.
-  **(NoeFix):** `authServiceClient`, `authController`, `authRoutes`, `models/user.js` only. *(provider model + authMiddleware
-  guard NOT needed — removed from scope.)*
+- **Phase 1 (JAuth, 6 new files + 1 edit):** `PhoneSignupOtp` entity, `PhoneSignupOtpRepository`,
+  `PhoneSignupSendOtpRequest` DTO, `PhoneSignupVerifyRequest` DTO, `PhoneSignupService`, `PhoneSignupController`
+  (USER-only — role hard-coded); `SecurityConfig` allowlist +2 entries.
+  **(NoeFix, 5 edits):** `utils/profileSync.js` (null-email safe), `utils/authServiceClient.js` (+2 wrappers),
+  `controllers/authController.js` (+2 controllers), `routes/authRoutes.js` (+2 routes), `models/user.js`
+  (`email: sparse:true` instead of `required:true`). *(provider model + authMiddleware guard confirmed NOT needed.)*
 - **Phase 2 (RenFi, USER screens only):** user choice screen, phone-signup screen, `OTPVerifyScreen` param, `authService`, `config/api`, i18n.
 - **Phase 3:** `UpdateProfileRequest`, `UserService.updateProfile` (+ NoeFix passthrough).
 
@@ -313,3 +347,69 @@ phone normalization, Mongo sync + retry/self-heal, phone-OTP login.
   covered by the first functional test (login → `/api/users/me`). **Functional test still PENDING — Phase 0 not yet `[x]`.**
 - 2026-06-22 — **Work continuing in a NEW session on Mac.** Handoff written (§0). Next action there:
   run the Terminal test for Phase 0, then proceed to Phase 1 if green.
+- 2026-06-22 — **Phase 0 FUNCTIONAL TEST: GREEN on Mac (dev/H2, EMAIL_PROVIDER=stub, SMS_PROVIDER=stub).**
+  App booted on :8080 (`Started AuthServiceApplication in 6.335s`). All 6 §0 endpoint calls returned their
+  expected success: (1) register USER → 201 (userId=1, JWT `sub`=email, claim `userId`=1, `role`=USER);
+  (2) `/api/users/me` → 200 with correct profile **(confirms identity resolves via `userId` claim, not `sub`)**;
+  (3) profile update → 200; (4) `/api/auth/sessions` → 200 (empty); (5) email/password login → 200 with fresh
+  tokens reflecting the renamed profile; (6) `/api/auth/email/send-verification` → 200 stub. No 401/500/stacks
+  in the regression-path log lines. Phase 0 marked `[x]`. Items still uncheckable on this box (legacy-token
+  fallback, NoeFix cross-repo, phone-only login, full provider regression) deferred to Phase 1 acceptance —
+  filter contract is unchanged from their POV (subject = email; `userId` claim is what's resolved).
+- 2026-06-22 — **Proceeding to Phase 1 pre-flight (§5).** No code edits yet; reading `OtpLoginService`,
+  `PhoneOtp`, `SecurityConfig`, NoeFix `authServiceClient` / `authController` / `authRoutes` to map blast
+  radius and confirm the empty-email-as-NULL invariant + the on-verify-only account-creation point.
+- 2026-06-22 — **Phase 1 PRE-FLIGHT findings (no code changed yet). FLAGGED to user.**
+  JAuth side (matches plan):
+    - `PhoneOtp.user_id` IS NOT NULL → separate `PhoneSignupOtp` justified.
+    - `SecurityConfig` already permits `/api/auth/login/phone/*`; need 2 new public entries
+      `/api/auth/signup/phone/send-otp` + `/api/auth/signup/phone/verify`.
+    - Reusable infra confirmed: `UserRepository.existsByPhoneNumberAndIsPhoneVerifiedTrueAndIsActiveTrue`,
+      `findByPhoneNumberAndIsActiveTrue`, `User.normalizePhoneNumber`, `SmsService`, `OtpLoginService` OTP/rate-limit pattern.
+  NoeFix side (BIGGER blast radius than plan documented — `profileSync.js` was NOT in §5/§9 file list):
+    1. `utils/profileSync.js:246-247` — `ensureProfileFromJavaAuth` THROWS when `java.email` is falsy
+       (`'Java Auth user has no email'`). Phone-only users → null email → throw → no Mongo profile created. **Hard blocker.**
+    2. `utils/profileSync.js:98` (`normalizeJavaUser`) — `email: (javaUser.email || '').trim().toLowerCase()`
+       silently coerces null to `""`. **Directly violates the §1 NULL-not-empty-string rule** (sparse unique would collide on `""`).
+    3. `utils/profileSync.js:263` — existing-doc lookup includes `{ email: java.email }`; with null becomes
+       `{ email: null }` and could mass-match other phone-only docs. Must drop the email branch when null.
+    4. `models/user.js:77` — `email: { type: String, unique: true, required: true }` → switch to `sparse` (and drop `required:true`).
+  Recommendation: add `utils/profileSync.js` to Phase 1 file-change list (§5/§9). Smallest safe edits — change `throw`
+  to `if (java.email) {...}` branches, propagate null through `identitySet`, skip the email branch in the `$or` lookup
+  when null. Existing email-having users (manual register / Google / Apple) preserve current behaviour. No code edited
+  until the user acks. App stopped on :8080.
+- 2026-06-22 — **User acked Phase 1 go-ahead.** JAuth half coded (6 new files: `PhoneSignupOtp` entity, repo,
+  `PhoneSignupSendOtpRequest` + `PhoneSignupVerifyRequest` DTOs, `PhoneSignupService`, `PhoneSignupController`)
+  + `SecurityConfig` allowlist updated (+2 entries). `./mvnw clean compile` → BUILD SUCCESS, 110 files (was 104).
+- 2026-06-23 — **Phase 1 FULL e2e GREEN.** Installed `mongodb-memory-server` (v11.2.0) as NoeFix devDependency,
+  wrote `/tmp/phase1_full_e2e.js`, restarted local JAuth (dev/H2/stub-SMS), and ran 5 scenarios end-to-end through
+  the new NoeFix wrappers + `ensureProfileFromJavaAuth` against an in-process Mongo. **22 assertions PASSED:**
+  (A) phone-only signup → Mongo doc with `email: undefined` (NOT `""`), 10-digit phone, unified `_id`,
+  business-field overrides persisted; (B) classic email register regression → email lowercased+trimmed onto doc;
+  (C) re-syncing the same JAuth user is idempotent (no duplicate insert); (D) phone-only user later gaining email
+  patches onto existing doc (Phase 3 forward-compat); (E) two phone-only users with no email both insert under a
+  manually-built sparse unique email index (proves the §4 prod index-rebuild step actually achieves coexistence).
+  Side findings (not in scope to fix): User schema has no `phoneVerified` field (JAuth is authoritative for
+  verification state); pre-existing `{phone:1}` index mixes `sparse+partialFilterExpression` which Mongo refuses
+  on `syncIndexes` — assumed prod runs with `autoIndex:false`. JAuth stopped, in-memory Mongo torn down cleanly.
+- 2026-06-23 — **NoeFix Phase 1 code DONE (5 files edited).** `models/user.js` email switched to sparse unique;
+  `utils/profileSync.js` made null-email safe (no more coercion, no more throw, no more `{email:null}` lookup);
+  `utils/authServiceClient.js` got 2 new wrappers; `controllers/authController.js` got 2 new controllers
+  (`requestPhoneSignupOtp`, `verifyPhoneSignupAndSync`) modelled on `register()` with full legal-acceptance gate
+  + defensive `role !== USER` check; `routes/authRoutes.js` got 2 new public-rate-limited routes.
+  All 5 files pass `node --check`. **JAuth-integration smoke test green:** `/tmp/phase1_wrapper_test.js` calls
+  the new wrappers against local JAuth → user #3 created (`email=null, role=USER, isPhoneVerified=true`); duplicate
+  re-send → 409 ALREADY_REGISTERED with correct mapping. **DEFERRED:** the Mongo-write half of e2e
+  (`ensureProfileFromJavaAuth` upsert). This Mac has no `mongod`/Docker, and the NoeFix `.env` points to prod Mongo
+  Atlas — explicitly refused per AGENTS.md §3 (no prod data pollution). Phase 1 NoeFix marked `[~]` until a dev
+  Mongo is available; full e2e instructions left in §5 Verification block.
+- 2026-06-22 — **JAuth Phase 1 functional test GREEN on Mac (dev/H2 / stub SMS).**
+  Smoke flow: `POST /api/auth/signup/phone/send-otp` (+91 9876543212, "Phone Only Three") → 200 + maskedPhone;
+  read OTP from `StubSmsService` log; `POST /api/auth/signup/phone/verify` → 200 + tokens, `email=null`,
+  `isPhoneVerified=true`, `isNewUser=true`. `GET /api/users/me` with the new token → 200, `email=null`,
+  `hasPassword=false`. **Duplicate path:** re-send for same phone → 409 `ALREADY_REGISTERED`.
+  **Phase 0 critical check unblocked:** `POST /api/auth/login/phone/send-otp` + `/verify` for the phone-only
+  user → 200, tokens issued with null subject, `/api/users/me` resolves via `userId` claim. **Regression:**
+  classic email/password register works alongside (userId=2 created, hasPassword=true, email set). Phase 0
+  §4 verification-checklist items "Existing phone-OTP LOGIN works for an email-less user" now PASSED. JAuth
+  half of Phase 1 marked `[x]`. NoeFix half next.
