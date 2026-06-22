@@ -12,6 +12,72 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done + verified �
 
 ---
 
+## 0. ⭐ SESSION HANDOFF — RESUME HERE (read this first)
+
+**Where we are (2026-06-22):**
+- Building **phone-number + OTP signup for SERVICE USERS ONLY**. Providers are out of scope and must
+  stay 100% untouched. Phone *login* already exists — we only build *signup*. Email is optional for
+  users (bookings need phone-verified only); users can add+verify an email later via a **link** (not OTP).
+- We're on branch **`feature/phone-signup-users`** (based off `feature/apple_devlopment`, **NOT `main`**;
+  main is prod). Nothing has been merged or deployed.
+- **Phase 0 (identity refactor: email → userId, email made nullable) is CODED and COMPILES**
+  (`./mvnw clean compile` → BUILD SUCCESS, 104 files, release 17). 8 code files changed (see §9).
+- Static re-verification done: all authed consumers parse principal as `Long.valueOf(auth.getName())`;
+  filter always sets principal = userId string; OAuth2 success handler is a separate flow (unaffected).
+
+**What's left to do, in order:**
+1. **Functional-test Phase 0** from the terminal (see "Terminal test" below). This is the only
+   remaining gate for Phase 0. Especially: login → `GET /api/users/me` must return the profile.
+2. If green → mark Phase 0 `[x]` and start **Phase 1** (§5: the phone-signup endpoints, USER-only).
+3. Phase 2 (RenFi UI, user screens only) → Phase 3 (add-email-later via link).
+
+**Hard rules (also in `AGENTS.md` — follow them):**
+- Re-validate against live code before editing; FLAG anything that could affect existing users/sessions
+  or has unknown blast radius BEFORE changing it.
+- **Do NOT touch providers.** Phone signup endpoint hard-rejects role ≠ USER.
+- **Do NOT apply any DB migration locally** — H2 dev auto-applies the nullable change. The prod Postgres
+  migration (`§4 step 0.10`) is applied **manually at deploy time only**, never by the agent.
+- Phone-only users store email as **NULL, never `""`**.
+- Keep the JWT **subject = email** (don't change it — NoeFix admin middleware depends on it).
+- Update this tracker + the Validation Log after each step.
+
+### Terminal test for Phase 0 (dev / H2 — fresh in-memory DB each run)
+Run the app: `./mvnw spring-boot:run` (with your usual env). Default port is **8080** unless your
+config overrides it — adjust `BASE` below. H2 starts empty, so register a user first, then exercise
+the re-keyed (post-login) endpoints. **Expectation: all behave exactly as before the refactor.**
+```bash
+BASE=http://localhost:8080
+
+# 1) Register a USER (returns accessToken + userId)
+curl -s -X POST $BASE/api/auth/register -H 'Content-Type: application/json' -d '{
+  "email":"test1@example.com","password":"Test@1234","fullName":"Test User","role":"USER"
+}'
+# copy the accessToken from the response:
+TOKEN=PASTE_ACCESS_TOKEN_HERE
+
+# 2) *** THE KEY TEST *** — identity now resolves by userId, not email
+curl -s $BASE/api/users/me -H "Authorization: Bearer $TOKEN"          # expect: your profile JSON
+
+# 3) Update profile (name/phone)
+curl -s -X PUT $BASE/api/users/profile -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"fullName":"Renamed User"}'  # expect: updated profile
+
+# 4) Logged-in sessions
+curl -s $BASE/api/auth/sessions -H "Authorization: Bearer $TOKEN"       # expect: session list
+
+# 5) Email/password login again (separate from register)
+curl -s -X POST $BASE/api/auth/login -H 'Content-Type: application/json' -d '{
+  "email":"test1@example.com","password":"Test@1234"
+}'                                                                       # expect: tokens
+
+# 6) Logged-in email verification trigger (dev email provider = stub → returns success)
+curl -s -X POST $BASE/api/auth/email/send-verification -H "Authorization: Bearer $TOKEN"
+```
+PASS = every call returns its normal success response (no 401/500, `/api/users/me` shows the right user).
+If any call fails, capture the request + response body + the server log line and report it.
+
+---
+
 ## 1. Goal & Scope
 
 Add a third signup method (alongside Google and manual email/password):
@@ -240,3 +306,10 @@ phone normalization, Mongo sync + retry/self-heal, phone-OTP login.
   (off `feature/apple_devlopment`; NOT `main`). Not compiled on this box (Java/Maven toolchain mismatch — only JDK8 on
   PATH, only-script mvnw needs download). **Compile + functional test happens on Mac.** Migration 0.10 NOT yet applied.
   ⚠️ FLAG to user: base branch is `feature/apple_devlopment`, not `main` — confirm that's the intended base.
+- 2026-06-22 — **Phase 0 COMPILES on Mac** (`./mvnw clean compile` → BUILD SUCCESS, 104 files, release 17).
+- 2026-06-22 — Static runtime re-verification (grep of principal usage): all authed consumers parse
+  `Long.valueOf(auth.getName())`; filter always sets principal = userId string; `OAuth2AuthenticationSuccessHandler`
+  uses a separate OAuth2 login principal (unaffected). Residual runtime check = JJWT returning `userId` claim as Long,
+  covered by the first functional test (login → `/api/users/me`). **Functional test still PENDING — Phase 0 not yet `[x]`.**
+- 2026-06-22 — **Work continuing in a NEW session on Mac.** Handoff written (§0). Next action there:
+  run the Terminal test for Phase 0, then proceed to Phase 1 if green.
