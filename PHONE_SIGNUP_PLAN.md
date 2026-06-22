@@ -1,7 +1,7 @@
 # Phone-Number + OTP Signup — Implementation Plan & Tracker
 
-**Status:** Phase 0 CODED + pushed to branch `feature/phone-signup-users`. Awaiting Mac compile + test.
-Not compiled locally (no toolchain on this box) — first Mac step is `./mvnw compile`.
+**Status:** Phase 0 COMPILES on Mac (`./mvnw clean compile` → BUILD SUCCESS, 104 files, release 17).
+Next: functional regression test (run app + verify endpoints). Branch `feature/phone-signup-users`.
 **Last updated:** 2026-06-22
 
 > ⚠️ **Before doing ANY work on this, read [`AGENTS.md`](./AGENTS.md).**
@@ -113,8 +113,8 @@ phone normalization, Mongo sync + retry/self-heal, phone-OTP login.
       CREATE UNIQUE INDEX idx_email ON users (email) WHERE email IS NOT NULL;
       ```
 
-### Verification / regression checklist `[ ]`
-- [ ] Project compiles (`mvn -q compile`); tests pass if present.
+### Verification / regression checklist `[~]`
+- [x] Project compiles — `./mvnw clean compile` on Mac → BUILD SUCCESS (104 files, release 17), 2026-06-22.
 - [ ] Email/password login + all `/api/users/*` (profile, update, change-password, delete) work.
 - [ ] Google + Apple signup/login unaffected.
 - [ ] `/api/auth/otp/*` (logged-in phone verify) + `/api/auth/email/send-verification` + `/api/auth/sessions` still work.
