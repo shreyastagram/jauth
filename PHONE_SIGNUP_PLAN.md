@@ -622,4 +622,53 @@ Everything below is deploy/test/release — there is **no more feature coding** 
 - [ ] Post-release: watch the Phase 4 Crashlytics `ForcedLogoutNonFatal` / signup funnel for regressions.
 
 ### (Deferred, not blocking go-live)
-- [ ] **Phase 3 — add-email-later** (§7). Optional; ship anytime after go-live.
+- [ ] **Phase 3 — add-email-later** (§7). Coded 2026-06-24; deploy to dev + e2e, then it can ship.
+
+> 🔒 **§13 PRE-PROD SECURITY TODO is a hard gate before any prod deploy.** Dev tester round does not require it.
+
+---
+
+## 13. PRE-PROD SECURITY TODO  `[ ]`  (from 3-agent adversarial review, 2026-06-24)
+
+**Verdict: no auth-bypass / IDOR / account-takeover / token-forgery / role-escalation / secret-leak / injection
+found — all confirmed mitigated.** Findings below are abuse/cost + hygiene; safe for a trusted DEV tester round,
+but **fix the HIGH + MED items before PROD**. Decide each before release.
+
+**HIGH (fix before prod)**
+- [ ] **H1 — verification-email bombing.** `UserService.setEmail` → `sendVerificationOnEmailSet` deliberately skips
+      the resend rate-limit, and neither `POST /api/user/email/:userId` (NoeFix, `routes/userRoutes.js`) nor
+      `POST /api/users/email` (JAuth) is route-limited → an authed user can send ~200 verification mails/min to
+      arbitrary addresses. **Fix:** add `strictRateLimiter` (15/min, exists) to the NoeFix route AND throttle by
+      DESTINATION email in `EmailVerificationService.generateAndSend` (count recent sends to `user.getEmail()`, not
+      by userId — alternating addresses defeats the userId cap).
+- [ ] **H2 — phone-signup OTP in wrong rate-limit bucket.** `RateLimitingFilter.isOtpEndpoint()` matches `"/otp"`
+      but the path is `…/signup/phone/send-otp` (substring `-otp`) → it gets the 100/min general bucket, not the
+      5/min OTP bucket → SMS-cost abuse (attacker hits JAuth directly, bypassing NoeFix's 30/min). **Fix:** match
+      `send-otp` / `/signup/` (and route `…/verify` into the OTP bucket too). Consider a global SMS budget/circuit-breaker.
+
+**MEDIUM (fix before prod)**
+- [ ] **M1 — verifyEmail trusts current email, not the token's bound email.** `EmailVerificationService.verifyEmail`
+      sets `isEmailVerified=true` without comparing `verificationToken.getEmail()` to `user.getEmail()`. Currently
+      safe (every set/change invalidates old tokens), but no 2nd line of defense. **Fix:** reject if
+      `!token.getEmail().equalsIgnoreCase(user.getEmail())`.
+- [ ] **M2 — PII in logs.** Full email logged at INFO/WARN: `EmailVerificationService` (~:167, :196), `UserService`
+      (~:445, :605, :624 — logs raw email+phone while anonymizing); verify-token prefix logged (~:157). **Fix:**
+      route through existing `maskEmail()`/`maskPhone()`; drop the token-prefix log.
+
+**LOW / robustness / risk-accept**
+- [ ] **L1** — phone-reclaim race: map `DataIntegrityViolationException` (idx_phone) to a clean 409 `ALREADY_REGISTERED`
+      (`PhoneSignupService` verify-time insert) instead of a generic 500.
+- [ ] **L2** — set-email 409 is an email-enumeration oracle (inherent to change-email UX; the H1 limiter caps speed).
+- [ ] **L3** — `VerificationController.buildSuccessHtml`: HTML-escape + URL-encode the reflected email (parity with
+      the error branch). Not reachable today (input validated), hygiene only.
+- [ ] **L4** — add a `@PostConstruct` assertion that `JWT_SECRET` ≥ 64 bytes (fail fast); normalize the `userId`
+      claim read to `Number.class).longValue()` to avoid spurious 401s.
+- [ ] **L5 (risk-accept?)** — refresh-token lifetime 60 days; confirm rotation invalidates the prior token.
+- [ ] **GATE** — `renfi/src/config/environment.js` `USE_DEV_STAGING` MUST be `false` for the prod build (git is
+      already false; never commit `true`).
+
+**Confirmed SAFE (no action):** JWT signature-first resolution (no claim/header injection, no alg-confusion),
+IDOR locked via `requireParamOwnership` bound to the token, account-takeover blocked (strict uniqueness + reset on
+change + token invalidation), role hard-locked USER, OTP `SecureRandom` 6-digit + 3-attempt lockout + constant-time
+compare + single-use, no committed secrets, scoped `$set` (no mass-assignment), Mongo input string-normalized,
+CORS explicit-origins only.
