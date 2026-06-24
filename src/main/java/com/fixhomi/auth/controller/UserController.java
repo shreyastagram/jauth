@@ -3,6 +3,7 @@ package com.fixhomi.auth.controller;
 import com.fixhomi.auth.dto.ChangePasswordRequest;
 import com.fixhomi.auth.dto.DeleteAccountRequest;
 import com.fixhomi.auth.dto.MessageResponse;
+import com.fixhomi.auth.dto.SetEmailRequest;
 import com.fixhomi.auth.dto.UpdateProfileRequest;
 import com.fixhomi.auth.dto.UserProfileResponse;
 import com.fixhomi.auth.service.UserService;
@@ -47,6 +48,24 @@ public class UserController {
     public ResponseEntity<UserProfileResponse> updateProfile(@Valid @RequestBody UpdateProfileRequest request) {
         Long userId = getCurrentUserId();
         UserProfileResponse profile = userService.updateProfile(userId, request);
+        return ResponseEntity.ok(profile);
+    }
+
+    /**
+     * Set or change the authenticated user's email (add-email-later / change-email).
+     * POST /api/users/email
+     *
+     * <p>Stores the email UNVERIFIED and sends a fresh verification link. Changing
+     * an already-verified email re-triggers verification. The NoeFix caller mirrors
+     * the email value into the Mongo profile after this returns 200.
+     *
+     * @param request the new email
+     * @return updated profile (with isEmailVerified=false)
+     */
+    @PostMapping("/email")
+    public ResponseEntity<UserProfileResponse> setEmail(@Valid @RequestBody SetEmailRequest request) {
+        Long userId = getCurrentUserId();
+        UserProfileResponse profile = userService.setEmail(userId, request.getEmail());
         return ResponseEntity.ok(profile);
     }
 

@@ -7,7 +7,26 @@
 Backend e2e (22 assertions) GREEN. UI committed; device/Metro smoke deferred to user.
 Pending prod deploy steps = §4.0.10 Postgres ALTER + Mongo `email` sparse-unique index rebuild.
 Nothing pushed.
-**Last updated:** 2026-06-23
+**Last updated:** 2026-06-24
+
+> ▶️ **RESUME HERE NEXT SESSION:** the *code* is done and the **backend is fully validated on an isolated dev
+> env**. As of 2026-06-24 a **dev-pointed build is going out to testers** via Firebase App Distribution
+> (`USE_DEV_STAGING=true` at build time; testers create accounts in the dev DB). **We are now waiting on tester
+> feedback.**
+>
+> 🟢 **WHEN TESTING PASSES AND YOU WANT TO GO LIVE — do these, in order (details in §12):**
+> 1. **Push/merge** the 3 feature branches to whatever each prod service deploys from (§12 Step 0). Confirm prod
+>    deploys from `main`, not the feature branches.
+> 2. **Prod Postgres migration — ONE line:** `ALTER TABLE users ALTER COLUMN email DROP NOT NULL;` (run on PROD
+>    Neon; verified safe + sufficient on the dev prod-copy branch — no index rebuild needed). §12 Step 2.
+> 3. **Deploy** JAuth + NoeFix to prod; smoke an existing email login + a throwaway phone signup. §12 Step 3.
+> 4. **RenFi release build:** set `renfi/src/config/environment.js` `USE_DEV_STAGING = false` (git already has
+>    false — just don't ship a `true` build), **fix the iOS build-number regression** (`CURRENT_PROJECT_VERSION`
+>    was dropped 14→1; must be > the last App Store build), build, final smoke against PROD.
+> 5. **Submit** to Play Store + App Store. §12 Steps 4–5.
+>
+> See **§12 GO-LIVE / DEPLOY CHECKLIST** for the full runbook, and **`renfi/renfi/PHONE_SIGNUP_TEST_PLAN.md`** for
+> the device test matrix.
 
 > ⚠️ **Before doing ANY work on this, read [`AGENTS.md`](./AGENTS.md).**
 > The pre-flight protocol (re-validate → map blast radius → flag if risky → smallest safe step →
@@ -296,10 +315,27 @@ Committed on branch `feature/phone-signup-users-ui` as `fbafaed` (11 files, +503
 > "add email later" is genuinely new. Current email verification = a **link** emailed to the user (not OTP).
 - [x] **DECISION (2026-06-22): use the existing email LINK** (`/api/auth/email/verify?token`), NOT OTP.
       Email is **updatable** but verification is **optional** (does not gate bookings).
-- [ ] Extend `UpdateProfileRequest` / `UserService.updateProfile` to accept `email`: enforce uniqueness,
-      set it (null → real email), trigger the existing **link-based** `EmailVerificationService` flow.
-- [ ] NoeFix profile update + sync round-trips the verified flag.
-- [ ] Only relevant to phone-only users (no email yet); providers and existing email users unaffected.
+- [x] **CODED 2026-06-24 (compiles/lints clean; not yet deployed/tested on dev).** Design refined from the
+      original note: a **dedicated `SetEmailRequest` + `POST /api/users/email`** (cleaner than overloading
+      `UpdateProfileRequest`). **Email CHANGE is supported** and re-triggers verification (per owner). **Dual-DB
+      sync:** the email VALUE lands in BOTH DBs; the **verified flag is NOT stored in Mongo for users — read from
+      JAuth** (owner decision; Mongo user schema has no such field).
+      - **JAuth:** `dto/SetEmailRequest`; `UserService.setEmail(userId, email)` — set-or-change, strict uniqueness
+        across active users (matches Mongo sparse-unique so they can't disagree), `isEmailVerified=false`, same-email
+        re-submit just resends (rate-limited), already-verified-same-email rejected; `EmailVerificationService`
+        refactored with `sendVerificationOnEmailSet` (no resend-rate-limit, invalidates OLD tokens so a stale link
+        can't verify a new address) + shared `generateAndSend`; `UserController POST /api/users/email`.
+      - **NoeFix:** `authServiceClient.setEmailInJavaAuth`; `userController.addUserEmail` (Mongo uniqueness pre-check
+        → JAuth FIRST → mirror email into Mongo; E11000/409/429 mapped; Mongo-fail-after-JAuth returns
+        `EMAIL_SET_SYNC_PENDING` and relies on login self-heal); route `POST /api/user/email/:userId`.
+      - **RenFi:** `api.js ADD_EMAIL`; `profileService.addUserEmail`; `VerificationScreen` email branch rewired to
+        the single NoeFix call (was two silent no-ops); success → reuse `emailSent` ("check inbox"); link auto-sent.
+- [ ] **Scope guard upheld:** USER-only path; providers + their `emailVerified` untouched. Changing an email
+      re-verifies. (Note: for email/login users this also changes their login email — accepted.)
+- [ ] **NOT YET:** deploy to dev (push jauth + noefix feature branches → redeploy) and run the **dual-DB e2e**
+      (set email → confirm value in dev Postgres AND dev Mongo, `isEmailVerified=false`; click link → JAuth flips
+      verified true; `/users/me` reflects it; change email → re-verify; duplicate → 409). Minor: 2 error strings in
+      `VerificationScreen` are hardcoded English (pre-existing pattern) — localize later.
 
 ---
 
@@ -429,3 +465,161 @@ Committed on branch `feature/phone-signup-users-ui` as `fbafaed` (11 files, +503
   classic email/password register works alongside (userId=2 created, hasPassword=true, email set). Phase 0
   §4 verification-checklist items "Existing phone-OTP LOGIN works for an email-less user" now PASSED. JAuth
   half of Phase 1 marked `[x]`. NoeFix half next.
+- 2026-06-24 — **Status review session (no code changed).** Confirmed code side is done (Phases 0–2); remaining
+  work is GO-LIVE only. Verified from `renfi/src/config/{environment,api}.js` that the app has **NO test/staging
+  tier** — strictly PRODUCTION (`api.fixhomi.com`/`auth.fixhomi.com`) or LOCAL (`__DEV__`). Corrected the user's
+  proposed "deploy to test → point app at test → test → prod" flow: there is no test cloud to point at, so testing
+  is either LOCAL backends or stand-up staging. Affirmed "prod DB migration before backend" as the safe order
+  (with the nuance that JAuth boots fine either way; migrations must precede the first null-email INSERT). Added
+  **§12 GO-LIVE / DEPLOY CHECKLIST** as the ordered runbook + resume pointer for the next session. Nothing pushed,
+  nothing deployed, no migrations applied.
+
+---
+
+- 2026-06-24 — **4-agent independent code audit (Opus 4.8) — ALL GREEN.** Ran 4 parallel auditors against the
+  committed diffs (JAuth 3ef879b/c752c96, NoeFix bdc320c, RenFi fbafaed) + current HEAD:
+  (1) **Existing-user / legacy-token safety = SAFE** — JWT filter resolves by signed `userId` claim w/ email
+  fallback; subject still = email; ALL `getName()` consumers parse Long (exhaustive); no logout/revocation; claim
+  is signature-bound (not spoofable). All real issued tokens carry `userId` since the first JWT commit → none break.
+  (2) **JAuth signup parity = OK** — same `User` entity, same `UserRepository.save`, same `users` table + auditing;
+  differs only in intended ways (email=null, password=null, isPhoneVerified=true) + role hard-locked USER.
+  (3) **NoeFix sync parity + existing-user safety = OK** — same `ensureProfileFromJavaAuth(role='user')`, unified
+  `_id===javaUserId`, null email stored ABSENT (not ""), `$or` drops `{email:null}`, idempotent, legal-gated.
+  (4) **Providers untouched = YES; abuse-resistant = YES** — no provider file in any commit; role un-overridable;
+  RenFi card ungated for providers; OTP SecureRandom 6-digit, 3-attempt lockout, 5-min expiry, per-phone 3/min cap.
+  Non-blocking: pre-existing spoofable `X-Forwarded-For` IP limiter (per-phone cap mitigates); the 2 manual DB
+  migrations are the only real operational risk and fail CLOSED if skipped. No code changed during the audit.
+
+- 2026-06-24 — **[!] INCIDENT / FLAG: "dev" Render env shares PROD databases.** Deployed phone-signup branches to
+  `jauth-dev.onrender.com` + `noefix-dev.onrender.com` (both healthy: JAuth `/actuator/health`→200, NoeFix `/`→200).
+  **Then discovered both dev services point at the REAL PROD Postgres + Mongo, and dev uses REAL SMS.** Assessed
+  blast radius from config (no code run by us):
+  - JAuth `ddl-auto: update` (application.yaml:26 + application-prod.yaml:45) → booting dev against prod Postgres
+    **created the new `phone_signup_otps` table in PROD** (additive, harmless, needed at go-live anyway). The email
+    nullable change did NOT apply (update mode never drops NOT NULL) → prod `email` still NOT NULL. No existing
+    column/constraint/row altered.
+  - NoeFix Mongo (`config/db.js`, Mongoose default autoIndex:true, no syncIndexes) → tried to create the sparse
+    unique email index; prod's existing non-sparse unique index causes an IndexOptionsConflict that Mongoose LOGS
+    and IGNORES — **no index dropped/rebuilt on prod**. Prod email index intact.
+  - **Conclusion: NO destructive change to prod, existing users unaffected.** But the env has NO isolation.
+  **STOPPED before running any signup smoke** (would create real users in prod + send real SMS). **Required fix:**
+  give the dev services SEPARATE dev databases (dev Postgres e.g. Neon branch + dev Mongo), repoint env vars,
+  redeploy (fresh schema auto-builds correctly, no migration needed on dev), THEN test. Until then: do not point
+  the app at the dev URLs, do not hit the dev signup endpoint; ideally suspend the two dev services.
+- 2026-06-24 — **ISOLATED DEV ENV STOOD UP + FULL BACKEND E2E GREEN on real infra.** Resolution of the incident
+  above: gave the dev services their OWN databases — dev Postgres = a **Neon branch off prod** (`dev-phone-signup`,
+  copy of prod data), dev Mongo = a **fresh Atlas cluster** (`fixhomi-dev`), a **separate dev JWT secret** (shared
+  between jauth-dev + noefix-dev), cross-URLs repointed (noefix-dev→jauth-dev, jauth-dev→noefix-dev), real MSG91 SMS.
+  - **Isolation PROVEN:** registered a throwaway email user on noefix-dev → 201; same creds on PROD (`api.fixhomi.com`)
+    → 401 (absent) → **dev writes do NOT reach prod.**
+  - **Found feature code was never pushed:** jauth `c752c96` + noefix `bdc320c` were local-only → dev had deployed
+    stale (Phase-0-only) code → `/signup/phone/*` 404'd. **Pushed both feature branches → redeployed → routes live.**
+  - **MIGRATION SIMPLIFIED (verified on the branch):** the ONLY required prod Postgres change is
+    **`ALTER TABLE users ALTER COLUMN email DROP NOT NULL;`** — `idx_email` is a standard UNIQUE constraint that
+    already allows multiple NULLs, so the partial-index DROP/CREATE from the old §4 plan is **unnecessary** (and
+    riskier). Discovery on the prod-copy branch: email was `NOT NULL`; single email enforcer `idx_email`; **0
+    empty-string emails, 0 duplicate emails** → prod migrates cleanly. Ran the one-liner on the branch → `email`
+    nullable = YES.
+  - **PHONE SIGNUP E2E GREEN:** real OTP to a real phone → `verify` → **201**, JAuth user `1762` (`email=null`,
+    `phone=9146282497`, `isPhoneVerified=true`, `hasPassword=false`), unified Mongo profile `_id=1762`, JWT with no
+    `sub`. `GET /api/users/me` with that null-subject token → **200** (resolves via `userId` claim). Duplicate number
+    → 409 `PHONE_ALREADY_EXISTS` (also confirmed). Backend feature fully validated on staging infra.
+  - **Still untested:** the RenFi **app UI** leg (point app at dev URLs + on-device flow), then the PROD rollout.
+- 2026-06-24 — **RenFi wired to dev + Phase 2 UI audited & polished (3 Opus reviewers).** Added a
+  `USE_DEV_STAGING` flag in `renfi/src/config/environment.js` (redirects the app to jauth-dev/noefix-dev; loud
+  startup warning; MUST be false for prod release — do not commit true). Audit results: **theme/colors consistent**
+  (phone card blue `#2563EB`, reuses user-auth card anatomy; provider flow provably untouched via the `onPickPhone`
+  gate; note: in this app auth screens are brand-orange for BOTH roles — the user/provider color split lives in the
+  home screens, and `OTPVerifyScreen` is already shared by both logins); **i18n complete** in en/hi/mr (fixed one
+  hardcoded `accessibilityLabel="Go back"` → `t('common.goBack')`). **OTP screen polished** (shared with live phone
+  LOGIN — login must be re-tested): autofocus on mount, SMS autofill (iOS `oneTimeCode` / Android `sms-otp`),
+  active-cell highlight with caret hidden (no flicker), keyboard-dismiss on success, double-submit ref guard,
+  Android backspace fallback, ScrollView wrap (no clipping under keyboard), role-string normalization (dropped a
+  `'user'` literal). All changes lint-clean. **Wrote `renfi/renfi/PHONE_SIGNUP_TEST_PLAN.md`** — full iOS+Android
+  device test matrix (signup, OTP behavior, MANDATORY login regression, provider-untouched, theme, i18n, null-email
+  usage, pre-release checklist). Next: self-run the test plan on a device → optional dev-pointed tester round →
+  PROD rollout (§12) → prod release build with `USE_DEV_STAGING=false`.
+
+- 2026-06-24 — **RenFi UI changes committed (`feature/phone-signup-users-ui` @ `b1851b4`, 4 files) + DEV-POINTED
+  TESTER BUILD going out.** Committed with `USE_DEV_STAGING=false` in git (clean); for the tester build the flag is
+  flipped to `true` locally (uncommitted) so the app hits jauth-dev/noefix-dev. Distributing via Firebase App
+  Distribution; testers create accounts in the dev DB (owner OK'd new-account creation; real MSG91 SMS; dev Render
+  may cold-start). **Did NOT commit two pre-existing native version bumps** (android versionCode 22→26 fine; **iOS
+  `CURRENT_PROJECT_VERSION` 14→1 is a REGRESSION — must be fixed > last App Store build before store submission**).
+  **Status: awaiting tester feedback.** Go-live runbook captured in the §0 RESUME block + §12 below. After build,
+  restore the flag with `git checkout renfi/src/config/environment.js`.
+
+## 12. GO-LIVE / DEPLOY CHECKLIST  `[ ]`  ← **START HERE NEXT SESSION**
+
+**The code is done (Phases 0–2). This section is the remaining path to production.**
+Everything below is deploy/test/release — there is **no more feature coding** required (Phase 3
+"add-email-later" is OPTIONAL and explicitly NOT part of go-live).
+
+### ⚠️ Key facts that shape the order (verified 2026-06-24)
+- **The RenFi app has NO "test"/staging tier.** `renfi/src/config/environment.js` + `config/api.js`
+  are strictly binary: **PRODUCTION** (`api.fixhomi.com` / `auth.fixhomi.com`) **or LOCAL**
+  (`__DEV__` → `localhost:5001` / `:8080`). There is no `test.fixhomi.com`. So "test the build"
+  means EITHER (A) point the app at **local** backends, OR (B) stand up real staging infra first.
+- **App talks to backends, not DBs directly:** RenFi → NoeFix (`api.fixhomi.com`) → JAuth
+  (`auth.fixhomi.com`) → Postgres + Mongo. So backends MUST be updated before the app can be tested
+  against prod — and the prod DB migrations gate the backends.
+- **Migration timing:** JAuth boots fine before the migration (Hibernate `ddl-auto:update` only adds,
+  never drops the existing `NOT NULL`). The migrations must be done **before the first real
+  phone-signup INSERT** (null email in Postgres / null email in Mongo). Since signup traffic only
+  arrives once the app ships, "migration first, then deploy backend" is the clean, safe rule.
+
+### Step 0 — Pre-deploy housekeeping  `[ ]`
+- [ ] **Branch bases.** JAuth `feature/phone-signup-users` was cut off `feature/apple_devlopment`
+      (NOT `main`); RenFi off `backgroun-tracking-update-fe`; NoeFix `phone-signup-providers`.
+      Confirm what each Render service actually DEPLOYS FROM, and decide the merge target per repo.
+- [ ] **Push the local commits** in all 3 repos (currently nothing is pushed).
+- [ ] ⚠️ Confirm none of the diffs accidentally flips `USE_PRODUCTION_*` to `false` (a local-test
+      toggle must never be committed).
+
+### Step 1 — Test the feature (pick ONE)  `[ ]`
+- [ ] **Option A — LOCAL (recommended first pass, zero prod risk):**
+      set `USE_PRODUCTION_NODE_API=false` + `USE_PRODUCTION_JAVA_AUTH=false` in `environment.js`,
+      run JAuth (H2) + NoeFix (local/dev Mongo) on the Mac, build a dev app, run the full
+      phone-signup flow on a real device (choice screen → name+phone → OTP → land on UserHome).
+      **Do NOT commit the `false` toggles.**
+- [ ] **Option B — STAGING (faithful, but real setup cost):** spin up throwaway Render services +
+      a staging Postgres + staging Mongo, add a staging URL to the config, point the app at it.
+- [ ] Provider regression smoke during whichever option: provider manual/Google/phone-login flows
+      must look and behave identically (the §6 gating prop should make the provider choice screen unchanged).
+
+### Step 2 — Prod DB migrations (MANUAL, before deploying backends)  `[ ]`
+> ⚠️ Touches LIVE tables. Additive/relaxing only (no row rewritten), but irreversible-in-practice.
+> Take a Postgres snapshot / Mongo backup first. Needs explicit go-ahead at run time.
+- [ ] **Postgres (JAuth DB) — ONE LINE (verified on the dev prod-copy branch 2026-06-24):**
+      ```sql
+      ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
+      ```
+      That's the ONLY required change. Do NOT drop/recreate `idx_email` — it's a standard UNIQUE constraint that
+      already allows multiple NULLs, so the old partial-index rebuild is unnecessary and riskier. Prod data was
+      confirmed clean (0 empty-string, 0 duplicate emails) so this migrates without issue.
+- [ ] **Mongo (NoeFix DB):** rebuild the `email` index as **sparse unique** (drop old non-sparse
+      unique, recreate `{ email: 1 }, { unique: true, sparse: true }`). Verify prod runs `autoIndex:false`
+      (the tracker assumed it; confirm before relying on manual index management).
+
+### Step 3 — Deploy backends to prod  `[ ]`
+- [ ] Deploy **JAuth** (Phase 0 + 1) to Render. Verify boot + a non-phone smoke (email login →
+      `/api/users/me`) so existing users are provably unaffected.
+- [ ] Deploy **NoeFix** (Phase 1) to Render. Verify a non-phone smoke (existing user profile sync).
+- [ ] Prod smoke of the new endpoints with a real throwaway phone:
+      `POST /api/auth/signup/phone/send-otp` → `/verify` → confirm a phone-only user is created
+      (`email=null`) in BOTH Postgres and Mongo, and existing email users still work.
+
+### Step 4 — Build + distribute the app  `[ ]`
+- [ ] Ensure `USE_PRODUCTION_*` are BOTH `true` (prod) for the release build.
+- [ ] Build RenFi (iOS + Android), push to **Firebase App Distribution**.
+- [ ] Real-device smoke against PROD: full phone-signup → confirm landing + that the user can book.
+- [ ] ⚠️ Note: testing against prod creates real (test) phone-only users in the prod DBs — plan to
+      identify/clean them, or use a disposable number.
+
+### Step 5 — Release  `[ ]`
+- [ ] If the Firebase test is clean → submit the app version to **Play Store** + **App Store**.
+- [ ] Backends are already live from Step 3, so "release" here is the app stores only.
+- [ ] Post-release: watch the Phase 4 Crashlytics `ForcedLogoutNonFatal` / signup funnel for regressions.
+
+### (Deferred, not blocking go-live)
+- [ ] **Phase 3 — add-email-later** (§7). Optional; ship anytime after go-live.

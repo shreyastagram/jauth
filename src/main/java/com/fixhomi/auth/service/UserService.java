@@ -15,6 +15,7 @@ import com.fixhomi.auth.exception.DuplicateResourceException;
 import com.fixhomi.auth.exception.InvalidPasswordException;
 import com.fixhomi.auth.exception.InvalidRoleException;
 import com.fixhomi.auth.exception.ResourceNotFoundException;
+import com.fixhomi.auth.exception.VerificationException;
 import com.fixhomi.auth.repository.DeleteAccountOtpRepository;
 import com.fixhomi.auth.repository.LoginLockoutRepository;
 import com.fixhomi.auth.repository.RefreshTokenRepository;
@@ -79,6 +80,9 @@ public class UserService {
 
     @Autowired
     private SmsService smsService;
+
+    @Autowired
+    private EmailVerificationService emailVerificationService;
 
     @Value("${fixhomi.notification.sms.msg91.delete-template-id:}")
     private String deleteTemplateId;
@@ -200,6 +204,84 @@ public class UserService {
                 savedUser.getUpdatedAt(),
                 savedUser.getLastLoginAt(),
                 savedUser.getPasswordHash() != null && !savedUser.getPasswordHash().isBlank()
+        );
+    }
+
+    /**
+     * Set or change a USER's email after signup.
+     *
+     * <p>Phone-only users add an email here; any user may change theirs. In every
+     * case the email is stored UNVERIFIED and a fresh verification link is sent —
+     * so changing an already-verified email re-triggers verification. Email is
+     * unique across all ACTIVE users (strict — matches the Mongo sparse-unique
+     * index, so JAuth and Mongo can never disagree). The email VALUE is mirrored
+     * into the Mongo profile by the NoeFix caller; the verified flag stays
+     * authoritative here in JAuth.
+     *
+     * <p>Edge cases:
+     * <ul>
+     *   <li>Same email re-submitted + already verified → reject (nothing to do).</li>
+     *   <li>Same email re-submitted + not verified → just resend the link (rate-limited), no reset.</li>
+     *   <li>Email belongs to another active user → 409 (no silent reclaim).</li>
+     *   <li>On a genuine change, old verification tokens are invalidated so an old link can't verify the new address.</li>
+     * </ul>
+     */
+    @Transactional
+    public UserProfileResponse setEmail(Long userId, String rawEmail) {
+        final User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+
+        if (rawEmail == null || rawEmail.isBlank()) {
+            throw new VerificationException("Email is required");
+        }
+        final String norm = rawEmail.trim().toLowerCase();
+        final String current = user.getEmail();
+
+        // Same email re-submitted.
+        if (current != null && current.equalsIgnoreCase(norm)) {
+            if (Boolean.TRUE.equals(user.getIsEmailVerified())) {
+                throw new VerificationException("This email is already set and verified.");
+            }
+            // Unverified — resend the link (rate-limited to prevent spam); no DB change.
+            emailVerificationService.sendVerificationEmail(userId);
+            logger.info("Email unchanged but unverified — resent verification link: userId={}", userId);
+            return toProfileResponse(user);
+        }
+
+        // New or changed email — strict uniqueness across all ACTIVE users.
+        userRepository.findByEmailAndIsActiveTrue(norm).ifPresent(other -> {
+            if (!other.getId().equals(userId)) {
+                throw new DuplicateResourceException("User", "email", rawEmail);
+            }
+        });
+
+        user.setEmail(norm);
+        user.setIsEmailVerified(false);
+        final User saved = userRepository.save(user);
+        logger.info("Email {} for user: userId={} — verification reset, sending link",
+                current == null ? "added" : "changed", userId);
+
+        // Fresh link; skips resend-rate-limit and invalidates old tokens internally.
+        emailVerificationService.sendVerificationOnEmailSet(userId);
+
+        return toProfileResponse(saved);
+    }
+
+    /** Build the standard profile response from a User entity. */
+    private UserProfileResponse toProfileResponse(User u) {
+        return new UserProfileResponse(
+                u.getId(),
+                u.getEmail(),
+                u.getPhoneNumber(),
+                u.getFullName(),
+                u.getRole(),
+                u.getIsActive(),
+                u.getIsEmailVerified(),
+                u.getIsPhoneVerified(),
+                u.getCreatedAt(),
+                u.getUpdatedAt(),
+                u.getLastLoginAt(),
+                u.getPasswordHash() != null && !u.getPasswordHash().isBlank()
         );
     }
 

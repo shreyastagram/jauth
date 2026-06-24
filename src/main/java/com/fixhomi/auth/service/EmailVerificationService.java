@@ -86,7 +86,41 @@ public class EmailVerificationService {
                     "Check your inbox (and spam folder) for the verification link we already sent.");
         }
 
-        // Invalidate any existing tokens
+        return generateAndSend(user);
+    }
+
+    /**
+     * Send a verification link right after an email is SET or CHANGED.
+     *
+     * <p>Unlike {@link #sendVerificationEmail(Long)} this skips the resend
+     * rate-limit, because it is triggered by a deliberate set/change action
+     * (not a user mashing "resend") and we MUST be able to send a link for the
+     * brand-new address even if a link was just sent for the previous one.
+     * It still invalidates any old tokens, so a link to a previous address can
+     * never verify the new one.
+     */
+    @Transactional
+    public String sendVerificationOnEmailSet(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+
+        if (user.getEmail() == null || user.getEmail().isBlank()) {
+            throw new VerificationException("No email address on this account. Please add an email first.");
+        }
+        // Defensive: a freshly set/changed email is always unverified, but guard anyway.
+        if (user.getIsEmailVerified()) {
+            return maskEmail(user.getEmail());
+        }
+
+        return generateAndSend(user);
+    }
+
+    /**
+     * Invalidate old tokens, mint a fresh one and email the verification link.
+     * Shared by the rate-limited resend and the set/change path.
+     */
+    private String generateAndSend(User user) {
+        // Invalidate any existing tokens — old links (incl. for a previous email) must die.
         tokenRepository.invalidateAllUserTokens(user.getId());
 
         // Generate new token
