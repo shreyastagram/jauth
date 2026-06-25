@@ -182,59 +182,100 @@ public class BrevoEmailService implements EmailService {
         }
     }
 
+    // FixHomi brand palette (matches the app)
+    private static final String BRAND = "#f67c16";        // primary orange
+    private static final String INK = "#1E293B";          // headings
+    private static final String BODY_TEXT = "#475569";    // paragraph text
+    private static final String MUTED = "#94A3B8";        // footnotes
+    private static final String CARD_BORDER = "#E2E8F0";
+    private static final String PAGE_BG = "#F1F5F9";
+    private static final String FOOTER_BG = "#F8FAFC";
+
     /**
-     * Build HTML email template with button.
+     * Build HTML email template with a primary call-to-action button.
      */
-    private String buildEmailTemplate(String title, String greeting, String message, 
+    private String buildEmailTemplate(String title, String greeting, String message,
             String buttonText, String buttonUrl, String footer) {
-        StringBuilder html = new StringBuilder();
-        html.append("<!DOCTYPE html><html><head><meta charset='UTF-8'></head><body style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>");
-        html.append("<div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;'>");
-        html.append("<h1 style='color: white; margin: 0;'>").append(escapeHtml(title)).append("</h1>");
-        html.append("</div>");
-        html.append("<div style='background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;'>");
-        html.append("<p style='font-size: 16px; color: #333;'>").append(escapeHtml(greeting)).append("</p>");
-        html.append("<p style='font-size: 16px; color: #666;'>").append(escapeHtml(message)).append("</p>");
-        
+        String button = "";
         if (buttonText != null && buttonUrl != null) {
-            html.append("<div style='text-align: center; margin: 30px 0;'>");
-            html.append("<a href='").append(escapeHtml(buttonUrl)).append("' style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 30px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;'>")
-                .append(escapeHtml(buttonText)).append("</a>");
-            html.append("</div>");
+            // "Bulletproof" button — table cell carries the colour so it renders in
+            // every client (Outlook included), not a styled <a> that some clients strip.
+            button =
+                "<table role='presentation' cellpadding='0' cellspacing='0' style='margin: 28px auto;'>" +
+                  "<tr><td align='center' bgcolor='" + BRAND + "' style='border-radius: 12px;'>" +
+                    "<a href='" + escapeHtml(buttonUrl) + "' target='_blank' " +
+                       "style='display: inline-block; padding: 14px 36px; font-family: Arial, Helvetica, sans-serif; " +
+                       "font-size: 16px; font-weight: bold; color: #ffffff; text-decoration: none; border-radius: 12px;'>" +
+                       escapeHtml(buttonText) +
+                    "</a>" +
+                  "</td></tr>" +
+                "</table>";
         }
-        
-        html.append("<p style='font-size: 14px; color: #999;'>").append(escapeHtml(footer)).append("</p>");
-        html.append("<hr style='border: none; border-top: 1px solid #eee; margin: 20px 0;'>");
-        html.append("<p style='font-size: 12px; color: #999; text-align: center;'>© 2026 FixHomi. All rights reserved.</p>");
-        html.append("</div></body></html>");
-        
-        return html.toString();
+        String body =
+            "<p style='margin: 0 0 14px; font-size: 16px; font-weight: 600; color: " + INK + ";'>" + escapeHtml(greeting) + "</p>" +
+            "<p style='margin: 0; font-size: 15px; line-height: 24px; color: " + BODY_TEXT + ";'>" + escapeHtml(message) + "</p>" +
+            button +
+            "<p style='margin: 18px 0 0; font-size: 13px; line-height: 20px; color: " + MUTED + ";'>" + escapeHtml(footer) + "</p>";
+        return baseShell(title, body);
     }
 
     /**
-     * Build HTML email template with OTP code.
+     * Build HTML email template with a one-time code.
      */
     private String buildOtpEmailTemplate(String title, String greeting, String message, String otp, String footer) {
-        StringBuilder html = new StringBuilder();
-        html.append("<!DOCTYPE html><html><head><meta charset='UTF-8'></head><body style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;'>");
-        html.append("<div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;'>");
-        html.append("<h1 style='color: white; margin: 0;'>").append(escapeHtml(title)).append("</h1>");
-        html.append("</div>");
-        html.append("<div style='background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;'>");
-        html.append("<p style='font-size: 16px; color: #333;'>").append(escapeHtml(greeting)).append("</p>");
-        html.append("<p style='font-size: 16px; color: #666;'>").append(escapeHtml(message)).append("</p>");
-        
-        html.append("<div style='text-align: center; margin: 30px 0;'>");
-        html.append("<div style='background: #f0f0f0; padding: 20px; border-radius: 10px; display: inline-block;'>");
-        html.append("<span style='font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #667eea;'>").append(escapeHtml(otp)).append("</span>");
-        html.append("</div></div>");
-        
-        html.append("<p style='font-size: 14px; color: #999;'>").append(escapeHtml(footer)).append("</p>");
-        html.append("<hr style='border: none; border-top: 1px solid #eee; margin: 20px 0;'>");
-        html.append("<p style='font-size: 12px; color: #999; text-align: center;'>© 2026 FixHomi. All rights reserved.</p>");
-        html.append("</div></body></html>");
-        
-        return html.toString();
+        String otpBox =
+            "<table role='presentation' cellpadding='0' cellspacing='0' style='margin: 26px auto;'>" +
+              "<tr><td align='center' style='background-color: #FFF7ED; border: 1px solid #FED7AA; border-radius: 12px; padding: 18px 30px;'>" +
+                "<span style='font-family: Arial, Helvetica, sans-serif; font-size: 34px; font-weight: bold; letter-spacing: 10px; color: " + BRAND + ";'>" +
+                  escapeHtml(otp) +
+                "</span>" +
+              "</td></tr>" +
+            "</table>";
+        String body =
+            "<p style='margin: 0 0 14px; font-size: 16px; font-weight: 600; color: " + INK + ";'>" + escapeHtml(greeting) + "</p>" +
+            "<p style='margin: 0; font-size: 15px; line-height: 24px; color: " + BODY_TEXT + ";'>" + escapeHtml(message) + "</p>" +
+            otpBox +
+            "<p style='margin: 18px 0 0; font-size: 13px; line-height: 20px; color: " + MUTED + ";'>" + escapeHtml(footer) + "</p>";
+        return baseShell(title, body);
+    }
+
+    /**
+     * Shared, brand-consistent email shell: page background, centered white card,
+     * orange FixHomi header, title, body slot, and footer. Table-based + inline
+     * styles for maximum email-client compatibility.
+     */
+    private String baseShell(String title, String bodyHtml) {
+        return
+            "<!DOCTYPE html>" +
+            "<html lang='en'><head>" +
+              "<meta charset='UTF-8'>" +
+              "<meta name='viewport' content='width=device-width, initial-scale=1.0'>" +
+              "<meta name='color-scheme' content='light only'>" +
+            "</head>" +
+            "<body style='margin: 0; padding: 0; background-color: " + PAGE_BG + ";'>" +
+              "<table role='presentation' width='100%' cellpadding='0' cellspacing='0' style='background-color: " + PAGE_BG + "; padding: 24px 12px;'>" +
+                "<tr><td align='center'>" +
+                  "<table role='presentation' width='600' cellpadding='0' cellspacing='0' style='max-width: 600px; width: 100%; background-color: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid " + CARD_BORDER + ";'>" +
+                    // Header — brand wordmark
+                    "<tr><td align='center' style='background-color: " + BRAND + "; padding: 26px 24px;'>" +
+                      "<div style='font-family: Arial, Helvetica, sans-serif; font-size: 24px; font-weight: 800; letter-spacing: 0.5px; color: #ffffff;'>FixHomi</div>" +
+                      "<div style='font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #FFE6CC; margin-top: 4px;'>Home services, simplified</div>" +
+                    "</td></tr>" +
+                    // Title
+                    "<tr><td style='padding: 30px 36px 0;'>" +
+                      "<h1 style='margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 21px; font-weight: 700; color: " + INK + ";'>" + escapeHtml(title) + "</h1>" +
+                    "</td></tr>" +
+                    // Body
+                    "<tr><td style='padding: 14px 36px 32px; font-family: Arial, Helvetica, sans-serif;'>" + bodyHtml + "</td></tr>" +
+                    // Footer
+                    "<tr><td style='background-color: " + FOOTER_BG + "; padding: 22px 36px; border-top: 1px solid " + CARD_BORDER + ";'>" +
+                      "<p style='margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 12px; line-height: 18px; color: " + MUTED + "; text-align: center;'>© 2026 FixHomi. All rights reserved.</p>" +
+                      "<p style='margin: 6px 0 0; font-family: Arial, Helvetica, sans-serif; font-size: 11px; line-height: 16px; color: #CBD5E1; text-align: center;'>This is an automated message — please do not reply.</p>" +
+                    "</td></tr>" +
+                  "</table>" +
+                "</td></tr>" +
+              "</table>" +
+            "</body></html>";
     }
 
     /**
