@@ -40,9 +40,11 @@ public class PhoneSignupController {
 
     @Operation(
         summary = "Send phone-signup OTP",
-        description = "Start a phone-number signup for a new USER account. Captures the prospective " +
-                "user's full name and dispatches an OTP via SMS. No user row is created at this stage. " +
-                "Rejects with 409 if a verified+active account already owns the phone number."
+        description = "Start a phone-number signup for a new USER account. Optionally captures the " +
+                "prospective user's full name (stored empty when absent — newer app versions collect " +
+                "it post-signup; a filled name is required before booking) and dispatches an OTP via " +
+                "SMS. No user row is created at this stage. Rejects with 409 if a verified+active " +
+                "account already owns the phone number."
     )
     @PostMapping("/phone/send-otp")
     public ResponseEntity<?> sendPhoneSignupOtp(@Valid @RequestBody PhoneSignupSendOtpRequest request) {

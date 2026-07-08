@@ -71,9 +71,11 @@ public class PhoneSignupService {
     private int rateLimitMaxRequests;
 
     /**
-     * Generate + dispatch a signup OTP for a phone number. The full name is captured
-     * now and carried through verify-time so the input flow is single-step from the
-     * client's perspective. No user row is created at this stage.
+     * Generate + dispatch a signup OTP for a phone number. The full name is optional:
+     * when provided it is carried through verify-time; when blank/absent the account
+     * is created with an EMPTY name (newer app versions collect the name post-signup;
+     * a filled name is required before booking a request). No user row is created at
+     * this stage.
      */
     @Transactional
     public String sendPhoneSignupOtp(String rawPhoneNumber, String fullName) {
@@ -81,10 +83,9 @@ public class PhoneSignupService {
         if (phoneNumber == null || phoneNumber.isBlank()) {
             throw new VerificationException("Invalid phone number.");
         }
+        // Full name is optional — the phone_signup_otps.full_name column is NOT NULL,
+        // so blank/absent is stored as "" (never a placeholder like "User").
         String trimmedName = fullName == null ? "" : fullName.trim();
-        if (trimmedName.isEmpty()) {
-            throw new VerificationException("Full name is required.");
-        }
 
         long recentRequests = phoneSignupOtpRepository.countRecentOtpRequests(
                 phoneNumber, LocalDateTime.now().minusMinutes(rateLimitMinutes));

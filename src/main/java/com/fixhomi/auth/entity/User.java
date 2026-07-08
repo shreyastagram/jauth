@@ -2,7 +2,6 @@ package com.fixhomi.auth.entity;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
@@ -39,7 +38,10 @@ public class User {
     @Column(length = 60)
     private String passwordHash;
 
-    @NotBlank(message = "Full name is required")
+    // Full name may be EMPTY ("") for phone-OTP signup users until they complete
+    // their profile — booking a service request requires a filled name. The column
+    // stays NOT NULL; blank is only ever "" and never null.
+    @Size(max = 100, message = "Full name must be at most 100 characters")
     @Column(nullable = false, length = 100)
     private String fullName;
 

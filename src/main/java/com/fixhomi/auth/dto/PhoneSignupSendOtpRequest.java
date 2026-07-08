@@ -6,8 +6,11 @@ import jakarta.validation.constraints.Size;
 
 /**
  * Request DTO for starting phone-number SIGNUP (account creation). The full name
- * is captured here so it can be carried through the OTP window and used at user
- * insert time. Email is NOT collected — phone-only users persist with email NULL.
+ * is OPTIONAL — newer app versions collect it post-signup, so a blank/absent name
+ * is stored as "" and the account keeps an empty name until the user fills it
+ * (required before booking a request). The field is kept for backward compatibility
+ * with older app versions that still send it. Email is NOT collected — phone-only
+ * users persist with email NULL.
  */
 public class PhoneSignupSendOtpRequest {
 
@@ -15,8 +18,7 @@ public class PhoneSignupSendOtpRequest {
     @Pattern(regexp = "^\\+?[1-9]\\d{6,14}$", message = "Invalid phone number format")
     private String phoneNumber;
 
-    @NotBlank(message = "Full name is required")
-    @Size(min = 1, max = 100, message = "Full name must be 1-100 characters")
+    @Size(max = 100, message = "Full name must be at most 100 characters")
     private String fullName;
 
     public PhoneSignupSendOtpRequest() {
