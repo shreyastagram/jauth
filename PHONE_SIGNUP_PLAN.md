@@ -672,3 +672,29 @@ IDOR locked via `requireParamOwnership` bound to the token, account-takeover blo
 change + token invalidation), role hard-locked USER, OTP `SecureRandom` 6-digit + 3-attempt lockout + constant-time
 compare + single-use, no committed secrets, scoped `$set` (no mass-assignment), Mongo input string-normalized,
 CORS explicit-origins only.
+
+---
+
+## 14. UNCOMMITTED — coded, NOT pushed (push later)  `[ ]`
+
+### 14.1 Forgot-password-via-EMAIL: no feedback for Google accounts + missing i18n key (2026-06-29)
+**Bug:** forgot-password → "via email" → Send OTP did nothing for a **Google (OAuth) account** (no password to
+reset). The PHONE path throws a clear "Google Sign-In" error the UI shows; the EMAIL path silently returned generic
+success → no OTP, no explanation → then verify said "No pending password reset." Also the `auth.otpSentEmail` i18n
+key was missing (UI fell back to hardcoded English; hi/mr showed English).
+
+**Fix (coded, lint/compile clean, NOT committed):**
+- JAuth `service/PasswordResetService.java` — `requestPasswordResetEmailOtp` now **throws**
+  `AuthenticationException("This account uses Google Sign-In…")` for OAuth-only accounts (was a silent return).
+  Password accounts unchanged (still send OTP); non-existent emails still silent (anti-enumeration preserved).
+- JAuth `controller/VerificationController.java` — `forgotPasswordEmail` catches it → `400 GOOGLE_ACCOUNT` + message;
+  the RenFi screen's existing `errorMsg.includes('Google Sign-In')` handler then shows the proper alert.
+- RenFi `i18n/en.js|hi.js|mr.js` — added `auth.otpSentEmail`.
+
+**⚠️ Tradeoff to confirm before pushing:** the email reset now REVEALS when an email is a registered Google
+account (was silent). The phone path already does this, so it's consistent; non-existent emails stay hidden. If
+strict anti-enumeration on email is preferred, revert the two JAuth changes and keep only the i18n key.
+
+**To take effect after push:** redeploy `jauth-dev` (backend) + new app build (i18n). Files to commit:
+`PasswordResetService.java`, `VerificationController.java` (JAuth `feature/phone-signup-users`);
+`i18n/{en,hi,mr}.js` (RenFi `feature/phone-signup-users-ui`).

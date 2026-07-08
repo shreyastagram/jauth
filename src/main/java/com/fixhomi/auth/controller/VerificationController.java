@@ -427,14 +427,23 @@ public class VerificationController {
      * Always returns 200 to prevent email enumeration.
      */
     @PostMapping("/forgot-password/email")
-    public ResponseEntity<VerificationResponse> forgotPasswordEmail(
+    public ResponseEntity<?> forgotPasswordEmail(
             @Valid @RequestBody ForgotPasswordRequest request) {
+        try {
+            passwordResetService.requestPasswordResetEmailOtp(request.getEmail());
 
-        passwordResetService.requestPasswordResetEmailOtp(request.getEmail());
-
-        // Always return success to prevent email enumeration
-        return ResponseEntity.ok(VerificationResponse.success(
-                "If your email is registered, you will receive a password reset OTP shortly."));
+            // Generic success — prevents email enumeration for non-existent emails.
+            return ResponseEntity.ok(VerificationResponse.success(
+                    "If your email is registered, you will receive a password reset OTP shortly."));
+        } catch (AuthenticationException e) {
+            // Account exists but is Google/OAuth-only — surface a clear message (mirrors
+            // the phone reset path) so the user knows to sign in with Google instead.
+            logger.warn("Forgot password email rejected: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "code", "GOOGLE_ACCOUNT",
+                    "message", e.getMessage()));
+        }
     }
 
     /**

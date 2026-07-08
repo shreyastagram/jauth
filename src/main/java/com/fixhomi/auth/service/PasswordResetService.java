@@ -307,8 +307,11 @@ public class PasswordResetService {
         User user = userOptional.get();
 
         if (user.getPasswordHash() == null || user.getPasswordHash().isBlank()) {
+            // Account exists but is OAuth-only (Google) — there is no password to reset.
+            // Give clear feedback (mirrors the phone reset path) instead of a silent
+            // generic-success that leaves the user waiting for an OTP that never arrives.
             logger.debug("Password reset email OTP for OAuth-only user: {}", maskEmail(normalizedEmail));
-            return;
+            throw new AuthenticationException("This account uses Google Sign-In and doesn't have a password to reset.");
         }
 
         // Invalidate old OTPs for this email
