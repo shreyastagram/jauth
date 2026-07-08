@@ -675,7 +675,7 @@ CORS explicit-origins only.
 
 ---
 
-## 14. UNCOMMITTED — coded, NOT pushed (push later)  `[ ]`
+## 14. UNCOMMITTED — coded, NOT pushed (push later)  `[x]` COMMITTED + PUSHED 2026-07-08 (jauth `f5f7aac`; tradeoff accepted — email-OTP reset now reveals Google accounts, consistent with the phone path)
 
 ### 14.1 Forgot-password-via-EMAIL: no feedback for Google accounts + missing i18n key (2026-06-29)
 **Bug:** forgot-password → "via email" → Send OTP did nothing for a **Google (OAuth) account** (no password to
@@ -698,3 +698,111 @@ strict anti-enumeration on email is preferred, revert the two JAuth changes and 
 **To take effect after push:** redeploy `jauth-dev` (backend) + new app build (i18n). Files to commit:
 `PasswordResetService.java`, `VerificationController.java` (JAuth `feature/phone-signup-users`);
 `i18n/{en,hi,mr}.js` (RenFi `feature/phone-signup-users-ui`).
+
+---
+
+## 15. UNIFIED USER AUTH — one-tap login/register (2026-07-08)  `[x]` CODED + COMMITTED + PUSHED + DEV-DEPLOYED
+
+> **NEXT-SESSION ENTRY POINT.** This section is the source of truth for the unified-auth work.
+> Everything below is committed & pushed and live on the dev Render instances against fresh
+> prod-snapshot databases. Remaining: on-device smoke test → Firebase App Distribution.
+
+### 15.1 What it is (product behavior)
+USER (customer) flow ONLY — providers 100% untouched. Login/Register merged into ONE screen:
+- **UnifiedUserAuthScreen**: Continue with Google (both platforms) / Apple (iOS only, App Store 4.8) /
+  Phone OTP. Terms sentence with tappable T&C/Privacy links UNDER the buttons (acceptance recorded at
+  sign-in, `termsAccepted:true` sent with auth). NO email/password sign-in for users anymore
+  (existing password users must use Google same-email auto-link or phone OTP — accepted).
+- Existing account → logs straight in. Unknown account → auto-registered (`isNewUser` in response).
+- **WelcomeModal** (new users only): "Welcome to FixHomi" + terms sentence + OPTIONAL name input
+  (phone signups only — Google/Apple bring a name; min 2 chars to match Node validation) + OPTIONAL
+  referral code (pre-filled from `pendingReferralCode` deep link; cleared only after successful apply
+  or explicit skip). Skip always available. Referral/name failures NEVER block login.
+- Phone accounts are created with an **EMPTY name** (never a placeholder like "User").
+- **Booking gate** (name + verified phone required to CREATE any service request): enforced
+  server-side (403 `PROFILE_INCOMPLETE` + `missing:{name,phone,phoneVerified}`) on traditional/event/
+  emergency create handlers, AND client-side on all 5 booking screens with a "Complete your profile"
+  dialog → navigates to `Profile` (existing name-edit + phone add/verify UI). Fail-OPEN when Java Auth
+  unreachable (data gate, not security). Changing profile phone RESETS phoneVerified/verifiedPhone.
+
+### 15.2 Commits (all pushed)
+- **jauth** `feature/phone-signup-users`: `f5f7aac` (§14 reset fix), `60e58fa` phone-signup fullName
+  optional (blank → stored `""`; `User.fullName` @NotBlank→@Size(max=100), column stays NOT NULL —
+  no migration; DTO field kept for old builds). `isNewUser` was ALREADY in LoginResponse for
+  Google/Apple/phone — no change needed.
+- **noefix** `phone-signup-providers`: `2eedecb` — unified OTP + apply-code + booking gate (below).
+- **renfi** `feature/phone-signup-users-ui`: `56ece45` — all app changes (below).
+
+### 15.3 New/changed API contracts (NoeFix)
+- `POST /api/auth/phone/unified/send-otp` {phoneNumber} → 200 {success, flow:'login'|'signup',
+  maskedPhone, expiresInMinutes} | 409 ROLE_CONFLICT (provider-owned) | 429. **strictRateLimiter**
+  (15/min/IP — SMS cost + existence oracle). Cross-DB drift fallbacks: signup 409→retry login,
+  login 404→fallback signup.
+- `POST /api/auth/phone/unified/verify` {phoneNumber, otp, flow, termsAccepted, privacyAccepted,
+  referralCode?} → tokens + isNewUser. signup=executePhoneSignupVerify (extracted core of legacy
+  verify; legalAcceptance write NON-FATAL); login=Java verify + role guard (non-USER → 403
+  ROLE_CONFLICT + **revokes the just-minted Java refresh token**) + Mongo self-heal.
+- `POST /api/referral/apply-code` {code} (authenticateToken + strictRateLimiter) → wraps
+  processReferral; self-heals missing Mongo profile from Java Auth before applying. Errors:
+  INVALID_CODE/SELF_REFERRAL 400, ALREADY_REFERRED 409, DAILY_LIMIT 429. processReferral now returns
+  {applied, reason,...}; daily cap counts ONLY credited referrals (was: burnable by no-op calls).
+- Google/Apple exchange (JAuth, existing): client now sends **NO `mode`** → auto login-or-register.
+- Mongo `User` schema now declares `phoneVerified`/`verifiedPhone`/`isEmailVerified` (writes were
+  silently dropped by strict mode before). `updateUserById` phone change resets verification.
+
+### 15.4 File map (for next session — read these, ignore the rest)
+**renfi** (`src/`): screens/UnifiedUserAuthScreen.jsx (NEW), screens/PhoneNumberScreen.jsx (NEW,
+number-only entry), components/WelcomeModal.jsx (NEW), hooks/useBookingProfileGate.js (NEW),
+screens/UserAuthScreen.jsx (rewritten: UNIFIED/PHONE_INPUT/OTP_VERIFY modes, popup orchestration,
+pendingAuth holds tokens until popup done, updateNameWithToken → Java PUT /api/users/profile
+{fullName} + Node PUT /api/user/profile/:id {fullName}), screens/OTPVerifyScreen.jsx (additive
+context==='unified' branch + PROFILE_SYNC_FAILED/MONGODB_SYNC_FAILED/PHONE_ALREADY_EXISTS cases),
+hooks/usePersistedAuthFlow.js (UNIFIED+PHONE_INPUT modes added; provider default unchanged),
+services/{authService,googleAuthService,appleAuthService,referralService}.js, config/api.js
+(OTP_UNIFIED + REFERRAL.APPLY_CODE), i18n/{en,hi,mr}.js, booking-gate wiring in screens/{UserHome,
+CreateServiceRequest,EmergencyServices,EventServices,Favorites}Screen.jsx. PhoneSignupScreen.jsx
+deprecated (kept for reference). LoginScreen/RegisterScreen/OTPLoginScreen still used by PROVIDERS.
+**noefix**: controllers/authController.js (requestUnifiedPhoneOtp, verifyUnifiedPhoneOtp,
+executePhoneSignupVerify, lookupVerifiedPhoneAccount), controllers/referralController.js (applyCode,
+processReferral refactor, isDailyLimitReached/recordDailyReferral split), controllers/userController.js
+(phone-change verification reset), utils/serviceHelpers.js (ensureBookingProfileComplete),
+utils/authServiceClient.js (sendPhoneLoginOtp/verifyPhoneLoginOtp/revokeJavaAuthRefreshToken),
+models/user.js, routes/{authRoutes,referralRoutes}.js, 3 service controllers (gate wiring).
+**jauth**: PhoneSignupService/Controller, PhoneSignupSendOtpRequest, entity/User.java.
+
+### 15.5 Reviews run before commit (3 read-only agents) + fixes applied
+Security (no CRITICAL/HIGH): daily-cap burn fix, apply-code+unified-send strict rate limits, sticky
+phoneVerified reset on phone change, gate prefers req.auth.userId, ROLE_CONFLICT token revoke.
+Resilience: legalAcceptance write non-fatal; apply-code profile self-heal; gate fail-open on Java
+outage; name min-2 enforced in modal (Node rejects <2 → divergence). UX: Apple glyph was EMPTY
+STRING (fixed ); booking gate also runs at CreateServiceRequestScreen mount (form-loss);
+submittingRef double-tap guards (WelcomeModal/PhoneNumberScreen); persisted OTP step cleared when
+popup opens (app-kill restore bug); deep-link code survives transient failures; SafeArea bottom edge.
+Known-accepted: Android hardware-back on popup = skip+login (account already exists); consumed-OTP
+retry needs a resend (messaged in-UI); in-memory rate/daily limits per-instance (MVP).
+
+### 15.6 Dev infra state (2026-07-08)
+- **Neon**: NEW branch `dev-unified-auth` off production (prod project, console.neon.tech). 1983
+  users. `users.email` NULLABLE=YES (manual ALTER run — Hibernate never drops constraints). All new
+  tables auto-created by ddl-auto (phone_signup_otps/phone_otps/email_otps/refresh_tokens verified).
+  jauth-dev Render env DATABASE_HOST/NAME/USERNAME/PASSWORD → this branch. (Old dev DB expired —
+  branch TTL; leave expiry EMPTY on future branches.)
+- **Mongo dev (Flex)**: fresh prod mongodump/mongorestore --drop. `users.email` index rebuilt
+  unique+sparse (CRITICAL for phone-only null emails). fcmToken CLEARED (users 1187, providers 626
+  modified) so testers can't push-notify real prod users.
+- **Render dev**: jauth-dev + noefix-dev deployed from the pushed branches; verified live via probes
+  (unified endpoint 400 MISSING_PHONE_NUMBER; jauth validation no longer requires fullName;
+  apply-code 401 without token).
+- **App**: environment.js `USE_DEV_STAGING=true` (UNCOMMITTED, correct for tester build; FLIP TO
+  false BEFORE ANY PROD RELEASE). android versionCode 28 / versionName 1.0.5 (uncommitted).
+
+### 15.7 Remaining / next steps  `[ ]`
+- [ ] Build `./gradlew assembleRelease` → Firebase App Distribution → on-device smoke test:
+      Google new+existing, phone new+existing, provider-phone conflict, provider regression,
+      sign-out/in (no popup), referral +50/+50, booking gate (skip name → blocked → fix → works).
+      Watch: release-keystore SHA-1 must be in Firebase for Google Sign-In (DEVELOPER_ERROR = missing).
+- [ ] §13 pre-prod security TODOs still open (H1 email-bombing, H2 phone-signup OTP rate-limit bucket…).
+- [ ] §12 go-live: NOTE — prod Postgres email NOT NULL migration + prod Mongo sparse index rebuild
+      STILL REQUIRED at prod deploy time (dev got them via branch-ALTER + restore-reindex).
+- [ ] iOS build number regression (pbxproj 14→1) before any TestFlight upload.
+- [ ] Product follow-ups accepted for later: T&C 4-month cycles vs code 2-cycles/year discrepancy.
