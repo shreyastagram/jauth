@@ -806,3 +806,72 @@ retry needs a resend (messaged in-UI); in-memory rate/daily limits per-instance 
       STILL REQUIRED at prod deploy time (dev got them via branch-ALTER + restore-reindex).
 - [ ] iOS build number regression (pbxproj 14→1) before any TestFlight upload.
 - [ ] Product follow-ups accepted for later: T&C 4-month cycles vs code 2-cycles/year discrepancy.
+
+---
+
+## 16. PROVIDER EXPERIENCE + SETTINGS/VERSION/OTP POLISH (2026-07-08, session 2)  `[x]` COMMITTED + PUSHED + DEV-DEPLOYED
+
+> Second work session (after the unified-auth §15). Two features shipped together. Not yet on-device tested.
+> Commits: noefix `d98348a` (backend), renfi `3d616be` (app), jauth unchanged this round.
+
+### 16.1 Provider experience — LinkedIn-style "Working since" date
+Replaces the free-text "years of experience" with a work START DATE; the app computes elapsed time
+("5 yrs 3 mos") so it never goes stale. Backward compatible.
+- **noefix** (`d98348a`): `models/provider.js` adds `experienceStartDate` (Date, default null; wins over
+  legacy `experience` string when set). `utils/serviceHelpers.js` adds `parseExperienceStartDate` (valid
+  date, not future, <=60 yrs). Accepted in provider register (`controllers/authController.js`
+  providerRegister + updateProviderProfile + getProviderProfile + providerLogin), Google provider sync
+  (`controllers/googleAuthController.js`), `utils/profileSync.js` buildProviderInsertDoc. RETURNED in every
+  provider payload — search (emergency/event getNearbyProviders/getEventServiceProviders), details
+  (traditional getProviderDetails, event getEventProviderDetails), bookings (event getUserBookings),
+  service history (`controllers/userController.js`, emergency getUserRequests). Legacy `experience` kept
+  in all responses.
+- **renfi** (`3d616be`): NEW `src/utils/experience.js` — `formatExperience(startDate, legacyExperience, t)`
+  → "5 yrs 3 mos"/"8 mos"/"1 yr"/"Just started"/legacy "5 yrs"/null; `formatMonthYear`, `monthsSince`,
+  `minExperienceStartDate` (60-yr floor). Picker (@react-native-community/datetimepicker, ALREADY a dep):
+  `ProviderRegisterScreen.jsx` (registration) + `ProfileScreen.jsx` (provider profile edit; prefilled,
+  clearable→sends null). Display via formatExperience (hides row when null): `ProfileScreen` read-only,
+  `HomeScreen` dashboard, `ProviderDetailsModal` (customer-facing, calls formatExperience w/o t → util
+  falls back to app i18n instance), Emergency + Event provider cards (cards are inline, no shared
+  ProviderCard component). `services/authService.js` registerProvider forwards `experienceStartDate` ISO.
+  API contract: field is OPTIONAL ISO string; null/'' clears; invalid → 400 INVALID_EXPERIENCE_START_DATE.
+- **i18n**: `experience.*` namespace (en/hi/mr) — justStarted, oneYear, years(`%{n} yrs`), oneMonth,
+  months(`%{n} mos`), workingSince, whenDidYouStart, experiencePreview, selectStartMonth,
+  experienceOptional. INTERPOLATION SYNTAX IS `%{n}` (i18n-js), not `{{n}}` — confirmed against existing
+  keys. NOTE: OAuth (Google/Apple) provider signup goes through RegisterChoice which collects NO business
+  details, so experienceStartDate is only sent via the manual registerProvider path (and profile edit).
+
+### 16.2 Settings / version / OTP polish (renfi `3d616be`)
+- **Delete-account icon**: `SettingsScreen.jsx` Delete Account row `iconName="close"` → `"delete"` (shared
+  `Icon.jsx` semantic map → Feather trash-2, red). ONE shared screen → both user & provider.
+- **Real app version**: NEW `src/config/appVersion.js` wraps react-native-device-info (ALREADY a dep;
+  crash-safe getters default ''). `getAppVersionLabel()` → "v1.0.5" from native versionName (NOT
+  package.json which is a stale 0.0.1). Used in `SplashScreen.jsx` + `DrawerMenu.jsx`. Added
+  `drawer.tapToCheckUpdates` i18n. SettingsScreen already used DeviceInfo — unchanged.
+- **OTP label/box collision**: `OTPVerifyScreen.jsx` — masked identifier was a forced `{'\n'}` inside one
+  Text with fixed lineHeight; long number + long HI/MR text overlapped the boxes. Fix: split masked value
+  into its own flowing Text (flexWrap, marginTop), header marginBottom — no fixed heights.
+- **SMS OTP autofill**: `textContentType="oneTimeCode"` (iOS) + `autoComplete="sms-otp"` (Android) on cell
+  0 of every SMS OTP input: OTPVerifyScreen, ForgotPasswordScreen, VerificationScreen, ProfileScreen
+  (BOTH user AND provider phone-verify blocks — provider one added in main-session follow-up),
+  SettingsScreen delete-account OTP (fixed invalid `one-time-code`→`sms-otp`), ChangePasswordScreen. Multi-
+  cell paste handlers fan the code across cells. `AppleEmailCollectionModal` = EMAIL → iOS oneTimeCode
+  ONLY, no android sms-otp. **EXCLUDED (must never autofill): service-completion OTP** —
+  `ProviderServiceHistoryScreen.jsx` (provider enters customer's completion code), `ServiceRequestDetailScreen.jsx`
+  (display-only). Verified untouched.
+
+### 16.3 Verified before commit
+Both features: per-file eslint HEAD-vs-working = ZERO new errors (all remaining are pre-existing
+exhaustive-deps/no-unused-vars/inline-styles). noefix node --check + module load OK. Two agents ran
+concurrently on shared files (i18n en/hi/mr, ProfileScreen) — merged without corruption (i18n parse OK,
+keys present in all 3, ProfileScreen error count unchanged). NOT committed: environment.js
+(USE_DEV_STAGING=true), build.gradle (versionCode 28/1.0.5), pbxproj, OWNER_TEST_GUIDE.md — intentional
+uncommitted working changes for the dev/tester build.
+
+### 16.4 Next  `[ ]`
+- [ ] Same on-device smoke test as §15.7 PLUS: provider registration with "Working since" date →
+      customer sees "X yrs Y mos"; provider with only legacy number still shows; provider with neither
+      hides the row; delete-account trash icon; splash shows real version; OTP autofill on a real SMS;
+      OTP label doesn't collide in HI/MR.
+- [ ] iOS build number regression (pbxproj 14→1) before TestFlight.
+- [ ] §13 pre-prod security TODOs + §12 prod migrations still pending at prod go-live.
