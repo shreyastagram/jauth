@@ -875,3 +875,33 @@ uncommitted working changes for the dev/tester build.
       OTP label doesn't collide in HI/MR.
 - [ ] iOS build number regression (pbxproj 14→1) before TestFlight.
 - [ ] §13 pre-prod security TODOs + §12 prod migrations still pending at prod go-live.
+
+---
+
+## 17. PRE-PROD FINAL AUDIT + FIXES (2026-07-09, session 3)  `[x]` code fixes committed/pushed; ops steps PENDING
+
+Ran 3 read-only audits (production blockers, translations, iOS/Android parity) before store submission. Fixed all code-level findings; the remaining blockers are MANUAL OPS the user must do at go-live.
+
+### 17.1 Code fixes committed this session
+- **jauth `7797a27`** (§13 H2): RateLimitingFilter — `send-otp` now matches the OTP bucket and OTP is checked before auth, so /signup/phone/send-otp (was 100/min) and /login/phone/send-otp (was 10/min) get the strict 5/min SMS bucket. Compiled OK.
+- **noefix `b6bbc9b`** (§13 H1): strictRateLimiter added to POST /api/user/email/:userId (set-email skips resend cooldown → email-bomb surface).
+- **renfi `ff759cd`**: (a) iOS "Working since" date picker had no dismiss — added iOS-only Done button in ProviderRegisterScreen + ProfileScreen (Android auto-dismisses). (b) t('detail.jobs') was undefined → raw "[missing translation]" marker for ALL users on CreateServiceRequestScreen → repointed to existing providerHistory.jobs. (c) added the 7 verificationDashboard accept-terms keys to hi.js + mr.js (were English-only in the provider consent flow).
+
+### 17.2 Translation audit result (GOOD overall)
+en=1851 / hi=1844 / mr=1844 keys. enableFallback=true, default en. ALL recent auth/experience/polish keys present + genuinely translated in hi/mr, interpolation `%{...}` consistent everywhere, no English-left-in-translation. After 17.1(b)(c): zero raw-key renders, zero missing-translation parity gaps.
+- KNOWN PRE-EXISTING (benign, NOT fixed — decide later): duplicate keys `auth.createAccount` (en L150/222 — last-wins drops the "Create your account" phrasing; button label "Create Account" shown everywhere) and `auth.privacyPolicy` (identical values). These are the 3 pre-existing eslint no-dupe-keys errors per i18n file. Benign at runtime; clean up when convenient.
+
+### 17.3 iOS/Android parity audit result (GOOD)
+No BLOCKER/MUST-FIX. Verified correct on BOTH: Apple Sign-In iOS-only gating (Google+Phone both platforms), SMS OTP autofill (oneTimeCode iOS / sms-otp Android on same inputs; no RECEIVE_SMS needed), device-info, vector-icon fonts registered both, permissions parity, deep links, KeyboardAvoidingView. Native modules (datetimepicker/device-info/apple-auth/google-signin/vector-icons) all in Podfile.lock + Android autolink → run `cd ios && pod install` only after a node_modules change. Only gap was the iOS picker dismiss (fixed 17.1a).
+
+### 17.4 GO-LIVE BLOCKERS STILL OPEN (manual — NOT code)  `[ ]`
+Ordered:
+1. [OPS] Neon PROD: `ALTER TABLE users ALTER COLUMN email DROP NOT NULL;` (phone-only users have null email; ddl-auto never drops constraints). Snapshot first.
+2. [OPS] Mongo PROD: drop non-sparse unique `email` index, recreate `{email:1}{unique:true,sparse:true}` (else 2nd phone-only user E11000 on null). Backup first.
+3. [OPS] PROD Render env — CRITICAL: jauth must set `SMS_PROVIDER=msg91` + MSG91_* keys and `EMAIL_PROVIDER=brevo` + BREVO_* (default is `stub` → NO OTP sent in prod). Also JWT_SECRET, DATABASE_*, GOOGLE_CLIENT_*, NODEJS_BACKEND_URL, ALLOWED_ORIGINS. Node: MONGO_URI(prod), JAVA_AUTH_URL(prod), NODE_ENV=production, ALLOWED_ORIGINS (must include admin origin or temp_admin web breaks; native app unaffected). Diff dev-vs-prod Render env for both services.
+4. [BUILD] renfi/src/config/environment.js — flip USE_DEV_STAGING back to `false` before building (working tree currently `true`; committed HEAD is already `false`). Do NOT commit `true`.
+5. [BUILD] renfi/ios pbxproj — CURRENT_PROJECT_VERSION currently `1` (working tree) but last uploaded build was 14 → set ≥15 in BOTH configs or App Store rejects. MARKETING_VERSION 1.0.5 OK.
+6. [BUILD] renfi/android build.gradle — versionCode 28 (from 22): confirm > last Play upload, then commit build.gradle with the release.
+7. [OPS] Confirm each Render service = single instance (in-memory referral daily cap + rate-limit buckets are per-instance; multi-instance loosens caps N×). Known-accepted MVP.
+8. [DECIDE] §13 M1/M2 (raw email/phone in logs) — review before prod.
+Order: DB migrations (1,2) → deploy backends w/ correct env (3) → flip toggle + fix versions (4,5,6) → build → store submit.
