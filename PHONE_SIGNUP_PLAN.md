@@ -905,3 +905,88 @@ Ordered:
 7. [OPS] Confirm each Render service = single instance (in-memory referral daily cap + rate-limit buckets are per-instance; multi-instance loosens caps N×). Known-accepted MVP.
 8. [DECIDE] §13 M1/M2 (raw email/phone in logs) — review before prod.
 Order: DB migrations (1,2) → deploy backends w/ correct env (3) → flip toggle + fix versions (4,5,6) → build → store submit.
+
+---
+
+## 18. ▶▶ RESUME HERE — NEXT STEPS TO SHIP TO PRODUCTION (self-contained)  `[ ]`
+
+> If the session was closed and the user says "read the MD, tell me the next steps" — THIS is the section to
+> read. All code is committed & pushed; nothing below is a code change. These are the manual OPS + BUILD steps
+> to take the (already-complete) unified-auth + provider-experience + polish work to prod + Play Store + App
+> Store. Do them IN ORDER. Cross-check the live code before acting (things may have changed since 2026-07-09).
+
+### State at last session (2026-07-09)
+- Branches (all pushed, dev Render deployed): jauth `feature/phone-signup-users`, noefix `phone-signup-providers`,
+  renfi `feature/phone-signup-users-ui`. NOT yet merged to main/production.
+- Dev env = fresh PROD snapshot (Neon branch `dev-unified-auth`, Mongo dev Flex). Prod DBs NOT yet migrated.
+- Full history: §15 (unified auth), §16 (provider experience + polish), §17 (final audit + fixes).
+
+### STEP 1 — Merge feature branches to production branches
+For each of the 3 repos, merge the feature branch into the production/main branch (confirm the prod branch
+name per repo first — likely `main`). Resolve conflicts, keep the feature code. Do NOT yet build the app.
+
+### STEP 2 — Neon PROD Postgres migration (do BEFORE any phone signup can happen)
+Snapshot the prod branch first. Then in the Neon SQL editor on the PRODUCTION branch run:
+```sql
+ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
+```
+Verify: `SELECT is_nullable FROM information_schema.columns WHERE table_name='users' AND column_name='email';`
+→ must be `YES`. (Why: phone-only users store email=NULL; Hibernate ddl-auto never drops constraints.)
+Do NOT touch idx_email — a standard UNIQUE index already allows multiple NULLs in Postgres.
+
+### STEP 3 — Mongo PROD email index → sparse-unique (do BEFORE 2nd phone signup)
+Back up first. In mongosh against the PROD cluster/db:
+```javascript
+// inspect current index (confirm name; usually "email_1")
+db.users.getIndexes()
+// drop the old non-sparse unique email index and recreate as sparse-unique
+db.users.dropIndex("email_1")
+db.users.createIndex({ email: 1 }, { unique: true, sparse: true })
+db.users.getIndexes()   // confirm email_1 now shows unique:true AND sparse:true
+```
+(Why: Mongoose won't alter an existing index; a 2nd phone-only user with null email hits E11000 on a
+non-sparse unique index.) New Mongo fields — verifiedPhone/phoneVerified/isEmailVerified (users),
+experienceStartDate/verifiedPhone/phoneVerified (providers) — need NO new indexes.
+
+### STEP 4 — PROD Render env vars (CRITICAL — without these, OTP silently never sends)
+On the PRODUCTION jauth Render service set (SMS/email default to `stub` = no delivery):
+```
+SMS_PROVIDER=msg91
+MSG91_AUTH_KEY=...   MSG91_TEMPLATE_ID=...   MSG91_VERIFICATION_TEMPLATE_ID=...
+MSG91_DELETE_TEMPLATE_ID=...   MSG91_SENDER_ID=...
+EMAIL_PROVIDER=brevo   BREVO_API_KEY=...   BREVO_SENDER_EMAIL=...
+```
+Also confirm present on jauth prod: JWT_SECRET, DATABASE_HOST/NAME/USERNAME/PASSWORD (prod Neon),
+GOOGLE_CLIENT_ID/SECRET, NODEJS_BACKEND_URL, ALLOWED_ORIGINS.
+On the PRODUCTION noefix Render service confirm: MONGO_URI (prod), JAVA_AUTH_URL (prod auth domain),
+NODE_ENV=production, ALLOWED_ORIGINS (MUST include the temp_admin web origin or the admin panel breaks;
+the native app is unaffected), plus existing RAZORPAY_*, BREVO_*, CLOUDINARY_*, FIREBASE_*, SUREPASS_API_TOKEN,
+MSG/PSA_MSG. Easiest: diff the dev Render env against prod for BOTH services and fill any gap.
+Then deploy both prod services from the merged branches. Smoke-check /api/auth/health.
+
+### STEP 5 — App build config (in renfi, right before building; do NOT commit the dev toggle as true)
+1. `src/config/environment.js` line ~48: set `USE_DEV_STAGING = false` (committed HEAD is already false; the
+   working tree may still be true from dev testing). This is what points the app at PROD vs dev Render.
+2. `ios/renfi.xcodeproj/project.pbxproj`: set `CURRENT_PROJECT_VERSION` to ≥ 15 in BOTH build configs (last
+   uploaded build was 14; App Store rejects a lower/equal build number). MARKETING_VERSION 1.0.5 is fine.
+3. `android/app/build.gradle`: confirm `versionCode 28` is greater than the last Play Store upload (bump if
+   not). versionName "1.0.5" is fine. Commit build.gradle with the release.
+4. If node_modules changed since last iOS build: `cd ios && pod install`. Otherwise Podfile.lock is in sync.
+
+### STEP 6 — Build & submit
+- Android: `cd android && ./gradlew bundleRelease` (AAB for Play) or `assembleRelease` (APK). Upload to Play Console.
+- iOS: open Xcode, Archive, upload to App Store Connect / TestFlight.
+- Confirm the store metadata / privacy declarations are current (phone number collection, etc.).
+
+### STEP 7 — Post-deploy verification (prod)
+Same smoke test as §15.7 / §16.4 but against PROD: Google new+existing, phone OTP new+existing (REAL SMS must
+arrive — proves Step 4), provider-phone→ROLE_CONFLICT, provider regression, sign-out/in (no popup), referral
++50/+50, booking gate (skip name→blocked→fix→books), provider "Working since" date → customer sees "X yrs Y mos",
+delete-account trash icon, splash shows real version, OTP autofills from SMS, HI/MR translations render (no
+English/raw keys), iOS "Working since" picker has a Done button.
+
+### STILL-OPEN NON-BLOCKERS (decide, not required to ship)
+- §13 M1/M2: raw email/phone in some logs — scrub before prod if compliance-sensitive.
+- Per-instance in-memory rate/referral caps (§17.4 #7): keep each Render service at 1 instance, or accept looser caps.
+- Pre-existing duplicate i18n keys auth.createAccount / auth.privacyPolicy (§17.2): benign, clean up when convenient.
+- iOS build-number hygiene: keep incrementing CURRENT_PROJECT_VERSION per TestFlight build going forward.
