@@ -86,10 +86,13 @@ public class RateLimitingFilter extends OncePerRequestFilter {
      * Resolve appropriate rate limit bucket based on endpoint.
      */
     private Bucket resolveBucket(String clientIp, String path) {
-        if (isAuthEndpoint(path)) {
-            return authBuckets.computeIfAbsent(clientIp, this::createAuthBucket);
-        } else if (isOtpEndpoint(path)) {
+        // OTP is checked BEFORE auth: OTP-send paths like /login/phone/send-otp also
+        // contain "/login", but every SMS-dispatching endpoint must get the strict OTP
+        // bucket (5/min), not the looser auth (10/min) or general (100/min) bucket.
+        if (isOtpEndpoint(path)) {
             return otpBuckets.computeIfAbsent(clientIp, this::createOtpBucket);
+        } else if (isAuthEndpoint(path)) {
+            return authBuckets.computeIfAbsent(clientIp, this::createAuthBucket);
         } else {
             return generalBuckets.computeIfAbsent(clientIp, this::createGeneralBucket);
         }
@@ -105,6 +108,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 
     private boolean isOtpEndpoint(String path) {
         return path.contains("/otp") ||
+               path.contains("send-otp") ||       // /signup/phone/send-otp, /login/phone|email/send-otp (§13 H2)
                path.contains("/forgot-password") ||
                path.contains("/send-verification") ||
                path.contains("/resend");
