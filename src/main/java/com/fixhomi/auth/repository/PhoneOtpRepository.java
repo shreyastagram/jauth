@@ -56,4 +56,12 @@ public interface PhoneOtpRepository extends JpaRepository<PhoneOtp, Long> {
     @Query("SELECT COUNT(p) FROM PhoneOtp p WHERE p.phoneNumber = :phoneNumber " +
            "AND p.createdAt > :since")
     long countRecentOtpRequests(@Param("phoneNumber") String phoneNumber, @Param("since") LocalDateTime since);
+
+    /**
+     * Count recent OTP requests by a single user across ALL phone numbers —
+     * stops one account from spraying OTPs at many different numbers.
+     */
+    @Query("SELECT COUNT(p) FROM PhoneOtp p WHERE p.userId = :userId " +
+           "AND p.createdAt > :since")
+    long countRecentOtpRequestsByUser(@Param("userId") Long userId, @Param("since") LocalDateTime since);
 }

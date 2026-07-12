@@ -3,9 +3,12 @@ package com.fixhomi.auth.controller;
 import com.fixhomi.auth.dto.ChangePasswordRequest;
 import com.fixhomi.auth.dto.DeleteAccountRequest;
 import com.fixhomi.auth.dto.MessageResponse;
+import com.fixhomi.auth.dto.PhoneChangeSendOtpRequest;
+import com.fixhomi.auth.dto.PhoneChangeVerifyRequest;
 import com.fixhomi.auth.dto.SetEmailRequest;
 import com.fixhomi.auth.dto.UpdateProfileRequest;
 import com.fixhomi.auth.dto.UserProfileResponse;
+import com.fixhomi.auth.service.PhoneVerificationService;
 import com.fixhomi.auth.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +26,9 @@ public class UserController {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private PhoneVerificationService phoneVerificationService;
 
     /**
      * Get authenticated user's profile.
@@ -67,6 +73,38 @@ public class UserController {
         Long userId = getCurrentUserId();
         UserProfileResponse profile = userService.setEmail(userId, request.getEmail());
         return ResponseEntity.ok(profile);
+    }
+
+    /**
+     * Start a verify-then-replace phone change (also add-first-number and
+     * re-verify): sends an OTP to the NEW number. The account's current number
+     * stays active and verified until the OTP is verified.
+     * POST /api/users/phone/change/send-otp
+     *
+     * @param request the new phone number
+     * @return masked new number confirmation
+     */
+    @PostMapping("/phone/change/send-otp")
+    public ResponseEntity<MessageResponse> sendPhoneChangeOtp(@Valid @RequestBody PhoneChangeSendOtpRequest request) {
+        Long userId = getCurrentUserId();
+        String maskedPhone = phoneVerificationService.sendChangeOtp(userId, request.getPhoneNumber());
+        return ResponseEntity.ok(new MessageResponse("OTP sent to " + maskedPhone));
+    }
+
+    /**
+     * Complete the phone change: verify the OTP sent to the NEW number; only on
+     * success the account's phoneNumber is replaced and marked verified — in a
+     * single transaction.
+     * POST /api/users/phone/change/verify
+     *
+     * @param request the new phone number and OTP
+     * @return the updated profile (phoneNumber = new, isPhoneVerified = true)
+     */
+    @PostMapping("/phone/change/verify")
+    public ResponseEntity<UserProfileResponse> verifyPhoneChangeOtp(@Valid @RequestBody PhoneChangeVerifyRequest request) {
+        Long userId = getCurrentUserId();
+        phoneVerificationService.verifyChangeOtp(userId, request.getPhoneNumber(), request.getOtp());
+        return ResponseEntity.ok(userService.getUserProfile(userId));
     }
 
     /**

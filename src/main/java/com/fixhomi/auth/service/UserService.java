@@ -152,40 +152,13 @@ public class UserService {
         }
 
         if (request.getPhoneNumber() != null) {
-            String normalizedNew = User.normalizePhoneNumber(request.getPhoneNumber());
-            String currentPhone = user.getPhoneNumber(); // already normalized in DB
-            boolean phoneIsChanging = normalizedNew != null && !normalizedNew.isBlank()
-                    && (currentPhone == null || !currentPhone.equals(normalizedNew));
-
-            if (normalizedNew != null && !normalizedNew.isBlank()) {
-                // Only block if another active user has this phone VERIFIED
-                if (!normalizedNew.equals(user.getPhoneNumber())) {
-                    if (userRepository.existsByPhoneNumberAndIsPhoneVerifiedTrueAndIsActiveTrue(normalizedNew)) {
-                        throw new DuplicateResourceException("User", "phoneNumber", request.getPhoneNumber());
-                    }
-                    // Clear unverified phone from old owner so this user can claim it
-                    final Long currentUserId = user.getId();
-                    userRepository.findByPhoneNumberAndIsActiveTrue(normalizedNew).ifPresent(oldUser -> {
-                        if (!oldUser.getId().equals(currentUserId) && !Boolean.TRUE.equals(oldUser.getIsPhoneVerified())) {
-                            logger.info("Clearing unverified phone {} from user {} for profile update",
-                                    normalizedNew, oldUser.getId());
-                            oldUser.setPhoneNumber(null);
-                            oldUser.setIsPhoneVerified(false);
-                            userRepository.save(oldUser);
-                        }
-                    });
-                }
-                user.setPhoneNumber(normalizedNew);
-            } else {
-                user.setPhoneNumber(null);
-            }
-
-            if (phoneIsChanging) {
-                user.setIsPhoneVerified(false);
-                logger.info("Phone number changed for user: userId={} — phone verification reset", userId);
-            }
-
-            logger.debug("Updating phoneNumber for user: userId={}", userId);
+            // Phone changes are NOT allowed through the plain profile update.
+            // The verify-then-replace flow (POST /api/users/phone/change/*) is
+            // the only writer: the number and its verified flag change together,
+            // atomically, only after the NEW number passes OTP. Ignoring (rather
+            // than rejecting) keeps older app builds working for their other
+            // profile fields — their phone edit becomes a visible no-op.
+            logger.info("Ignoring phoneNumber in profile update for user: userId={} — phone changes require the OTP change flow", userId);
         }
 
         User savedUser = userRepository.save(user);

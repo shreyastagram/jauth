@@ -192,8 +192,11 @@ public class OtpLoginService {
             throw new AuthenticationException("Account is deactivated. Please contact support.");
         }
 
-        // Auto-verify phone if not already verified
-        if (!user.getIsPhoneVerified()) {
+        // Auto-verify phone ONLY when the account's current number is still the
+        // number this OTP was sent to — a phone change between send and verify
+        // must not transfer verification to the new, unverified number.
+        if (!user.getIsPhoneVerified() && otpEntry.getPhoneNumber() != null
+                && otpEntry.getPhoneNumber().equals(user.getPhoneNumber())) {
             user.setIsPhoneVerified(true);
         }
 
