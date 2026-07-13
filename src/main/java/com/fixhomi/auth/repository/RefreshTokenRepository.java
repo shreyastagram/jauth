@@ -50,6 +50,13 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
     int deleteExpiredOrRevoked(@Param("now") LocalDateTime now);
 
     /**
+     * Hard-delete all refresh tokens for a specific user ID. Used by admin hard-delete.
+     */
+    @Modifying
+    @Query("DELETE FROM RefreshToken rt WHERE rt.user.id = :userId")
+    int deleteAllByUserId(@Param("userId") Long userId);
+
+    /**
      * Count active (non-revoked, non-expired) tokens for a user.
      */
     @Query("SELECT COUNT(rt) FROM RefreshToken rt WHERE rt.user.id = :userId AND rt.revoked = false AND rt.expiresAt > :now")

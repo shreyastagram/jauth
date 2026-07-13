@@ -60,9 +60,9 @@ public class PhoneVerificationService {
      * OTP is generated locally and sent via SMS provider.
      */
     @Transactional
-    public String sendOtp(String userEmail) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "email", userEmail));
+    public String sendOtp(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
         if (user.getPhoneNumber() == null || user.getPhoneNumber().isBlank()) {
             throw new VerificationException("No phone number registered for this account");
@@ -100,8 +100,8 @@ public class PhoneVerificationService {
             throw new VerificationException("Failed to send OTP. Please try again.");
         }
 
-        logger.info("Phone verification OTP sent for user: {} (phone: {})",
-                userEmail, maskPhoneNumber(phoneNumber));
+        logger.info("Phone verification OTP sent for user: userId={} (phone: {})",
+                userId, maskPhoneNumber(phoneNumber));
 
         return maskPhoneNumber(phoneNumber);
     }
@@ -111,9 +111,9 @@ public class PhoneVerificationService {
      * OTP is verified locally.
      */
     @Transactional
-    public void verifyOtp(String userEmail, String otpCode) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "email", userEmail));
+    public void verifyOtp(Long userId, String otpCode) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
         if (user.getPhoneNumber() == null || user.getPhoneNumber().isBlank()) {
             throw new VerificationException("No phone number registered for this account");
@@ -166,7 +166,148 @@ public class PhoneVerificationService {
         // Send success notification
         smsService.sendVerificationSuccess(phoneNumber);
 
-        logger.info("Phone verified successfully for user: {}", userEmail);
+        logger.info("Phone verified successfully for user: userId={}", userId);
+    }
+
+    // ==================== VERIFY-THEN-REPLACE PHONE CHANGE ====================
+
+    /**
+     * Start a phone change: send an OTP to the NEW number. The account's current
+     * number is NOT touched — it stays active and verified until the new number
+     * passes OTP verification. Also serves phone-less accounts adding a first
+     * number, and re-verification of a stored-but-unverified number.
+     *
+     * @return masked new phone number for display
+     */
+    @Transactional
+    public String sendChangeOtp(Long userId, String newPhoneNumber) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+
+        String normalized = User.normalizePhoneNumber(newPhoneNumber);
+        if (normalized == null || normalized.isBlank()) {
+            throw new VerificationException("Please enter a valid phone number");
+        }
+
+        if (normalized.equals(user.getPhoneNumber()) && Boolean.TRUE.equals(user.getIsPhoneVerified())) {
+            throw new VerificationException("This is already your verified phone number");
+        }
+
+        // Another active user holds this number VERIFIED → cannot claim it
+        if (!normalized.equals(user.getPhoneNumber())
+                && userRepository.existsByPhoneNumberAndIsPhoneVerifiedTrueAndIsActiveTrue(normalized)) {
+            throw new VerificationException("This phone number is already in use by another account");
+        }
+
+        // Rate limits: per target number (shared with all OTP flows) AND per user
+        // across numbers (blocks OTP-spraying many numbers from one account)
+        LocalDateTime since = LocalDateTime.now().minusMinutes(rateLimitMinutes);
+        if (phoneOtpRepository.countRecentOtpRequests(normalized, since) >= rateLimitMaxRequests
+                || phoneOtpRepository.countRecentOtpRequestsByUser(userId, since) >= rateLimitMaxRequests) {
+            throw new VerificationException("Too many OTP requests. Please wait before trying again.");
+        }
+
+        // Invalidate this user's previous OTPs for this number
+        phoneOtpRepository.invalidateAllUserOtps(userId, normalized);
+
+        String otp = generateOtp();
+        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(otpExpirationMinutes);
+        PhoneOtp phoneOtp = new PhoneOtp(userId, normalized, otp, expiresAt);
+        phoneOtpRepository.save(phoneOtp);
+
+        boolean sent = smsService.sendOtp(normalized, otp, verificationTemplateId);
+        if (!sent) {
+            phoneOtp.setVerified(true); // invalidate the OTP
+            phoneOtpRepository.save(phoneOtp);
+            logger.warn("Failed to send phone-change OTP for user: userId={} (phone: {})",
+                    userId, maskPhoneNumber(normalized));
+            throw new VerificationException("Failed to send OTP. Please try again.");
+        }
+
+        logger.info("Phone-change OTP sent for user: userId={} (new phone: {})",
+                userId, maskPhoneNumber(normalized));
+        return maskPhoneNumber(normalized);
+    }
+
+    /**
+     * Complete a phone change: verify the OTP sent to the NEW number and, only
+     * on success, atomically replace the account's phoneNumber and mark it
+     * verified — one transaction, so there is never a stored-but-unverified
+     * number and never a verified flag describing a different number.
+     */
+    @Transactional
+    public void verifyChangeOtp(Long userId, String newPhoneNumber, String otpCode) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+
+        String normalized = User.normalizePhoneNumber(newPhoneNumber);
+        if (normalized == null || normalized.isBlank()) {
+            throw new VerificationException("Please enter a valid phone number");
+        }
+
+        // OTP lookup is scoped to THIS user AND this number — an OTP issued to
+        // any other user or number can never complete this change.
+        PhoneOtp otpEntry = phoneOtpRepository.findLatestValidOtp(userId, normalized, LocalDateTime.now())
+                .orElse(null);
+        if (otpEntry == null) {
+            throw new VerificationException("No pending verification. Please request a new OTP.");
+        }
+
+        if (otpEntry.isExpired()) {
+            otpEntry.setVerified(true);
+            phoneOtpRepository.save(otpEntry);
+            throw new VerificationException("OTP has expired. Please request a new one.");
+        }
+
+        otpEntry.incrementAttempts();
+        int currentAttempts = otpEntry.getAttempts();
+        if (currentAttempts > maxAttempts) {
+            otpEntry.setVerified(true);
+            phoneOtpRepository.save(otpEntry);
+            throw new VerificationException("Maximum verification attempts exceeded. Please request a new OTP.");
+        }
+
+        if (!java.security.MessageDigest.isEqual(
+                otpEntry.getOtp().getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                otpCode.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
+            phoneOtpRepository.save(otpEntry);
+            int remainingAttempts = maxAttempts - currentAttempts;
+            throw new VerificationException("Invalid OTP. " + remainingAttempts + " attempt(s) remaining.");
+        }
+
+        // Re-check uniqueness at commit time (someone else may have verified this
+        // number between send and verify)
+        final Long currentUserId = user.getId();
+        User otherHolder = userRepository.findByPhoneNumberAndIsActiveTrue(normalized)
+                .filter(other -> !other.getId().equals(currentUserId))
+                .orElse(null);
+        if (otherHolder != null) {
+            if (Boolean.TRUE.equals(otherHolder.getIsPhoneVerified())) {
+                otpEntry.setVerified(true);
+                phoneOtpRepository.save(otpEntry);
+                throw new VerificationException("This phone number is already in use by another account");
+            }
+            // Unverified squatter — clear so this user can claim the number
+            logger.info("Clearing unverified phone {} from user {} for phone change",
+                    maskPhoneNumber(normalized), otherHolder.getId());
+            otherHolder.setPhoneNumber(null);
+            otherHolder.setIsPhoneVerified(false);
+            userRepository.save(otherHolder);
+        }
+
+        otpEntry.setVerified(true);
+        phoneOtpRepository.save(otpEntry);
+
+        // Atomic commit: number + verified flag change together
+        String previousPhone = user.getPhoneNumber();
+        user.setPhoneNumber(normalized);
+        user.setIsPhoneVerified(true);
+        userRepository.save(user);
+
+        smsService.sendVerificationSuccess(normalized);
+
+        logger.info("Phone changed and verified for user: userId={} ({} -> {})",
+                userId, maskPhoneNumber(previousPhone), maskPhoneNumber(normalized));
     }
 
     /**

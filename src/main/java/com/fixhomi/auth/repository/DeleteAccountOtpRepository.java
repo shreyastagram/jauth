@@ -31,4 +31,9 @@ public interface DeleteAccountOtpRepository extends JpaRepository<DeleteAccountO
     @Modifying
     @Query("DELETE FROM DeleteAccountOtp o WHERE o.expiresAt < :now")
     int deleteExpiredOtps(@Param("now") LocalDateTime now);
+
+    /** Hard-delete all OTP entries for a user. Used by admin hard-delete. */
+    @Modifying
+    @Query("DELETE FROM DeleteAccountOtp o WHERE o.userId = :userId")
+    int deleteAllByUserId(@Param("userId") Long userId);
 }

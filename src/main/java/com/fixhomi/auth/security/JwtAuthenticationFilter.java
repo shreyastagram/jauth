@@ -49,15 +49,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String jwt = extractJwtFromRequest(request);
 
             if (jwt != null && jwtService.validateToken(jwt)) {
-                // Extract user details from JWT
-                String email = jwtService.getEmailFromToken(jwt);
-                
+                // Resolve the user by userId claim (works for phone-only users with no email).
+                // Fall back to email (subject) only for legacy tokens that predate the userId claim.
+                Long userId = jwtService.getUserIdFromToken(jwt);
+                Optional<User> userOpt;
+                if (userId != null) {
+                    userOpt = userRepository.findById(userId);
+                } else {
+                    String legacyEmail = jwtService.getEmailFromToken(jwt);
+                    userOpt = (legacyEmail != null) ? userRepository.findByEmail(legacyEmail) : Optional.empty();
+                }
+
                 // SECURITY: Verify user is still active in database
                 // This ensures disabled users cannot use previously issued JWTs
-                Optional<User> userOpt = userRepository.findByEmail(email);
-                
                 if (userOpt.isEmpty()) {
-                    logger.warn("JWT valid but user not found in database: {}", email);
+                    logger.warn("JWT valid but user not found in database: userId={}", userId);
                     response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                     response.setContentType("application/json");
                     response.getWriter().write("{\"message\":\"Account no longer exists.\",\"code\":\"ACCOUNT_DELETED\"}");
@@ -66,21 +72,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 User user = userOpt.get();
                 if (!user.getIsActive()) {
-                    logger.warn("JWT valid but user account is disabled: {}", email);
+                    logger.warn("JWT valid but user account is disabled: userId={}", user.getId());
                     response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                     response.setContentType("application/json");
                     response.getWriter().write("{\"message\":\"Account has been deactivated.\",\"code\":\"ACCOUNT_DELETED\"}");
                     return;
                 }
-                
+
                 String role = jwtService.getRoleFromToken(jwt).name();
 
-                // Create authentication token
-                // Using email as principal, userId can be retrieved from JWT when needed
+                // Create authentication token.
+                // Principal = userId (as String) so identity works even when email is null
+                // (phone-only users). Controllers parse it back to Long via getCurrentUserId().
                 SimpleGrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + role);
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
-                                email,
+                                String.valueOf(user.getId()),
                                 null,
                                 Collections.singletonList(authority)
                         );
@@ -90,7 +97,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 // Set authentication in security context
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 
-                logger.debug("Set authentication for user: {} with role: {}", email, role);
+                logger.debug("Set authentication for user: userId={} with role: {}", user.getId(), role);
             }
         } catch (Exception ex) {
             logger.error("Cannot set user authentication: {}", ex.getMessage());

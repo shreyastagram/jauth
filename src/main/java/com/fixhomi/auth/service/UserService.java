@@ -15,8 +15,13 @@ import com.fixhomi.auth.exception.DuplicateResourceException;
 import com.fixhomi.auth.exception.InvalidPasswordException;
 import com.fixhomi.auth.exception.InvalidRoleException;
 import com.fixhomi.auth.exception.ResourceNotFoundException;
+import com.fixhomi.auth.exception.VerificationException;
 import com.fixhomi.auth.repository.DeleteAccountOtpRepository;
+import com.fixhomi.auth.repository.LoginLockoutRepository;
+import com.fixhomi.auth.repository.RefreshTokenRepository;
+import com.fixhomi.auth.repository.TrustedDeviceRepository;
 import com.fixhomi.auth.repository.UserRepository;
+import com.fixhomi.auth.repository.UserSessionRepository;
 import com.fixhomi.auth.service.notification.SmsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,7 +67,22 @@ public class UserService {
     private RefreshTokenService refreshTokenService;
 
     @Autowired
+    private RefreshTokenRepository refreshTokenRepository;
+
+    @Autowired
+    private TrustedDeviceRepository trustedDeviceRepository;
+
+    @Autowired
+    private UserSessionRepository userSessionRepository;
+
+    @Autowired
+    private LoginLockoutRepository loginLockoutRepository;
+
+    @Autowired
     private SmsService smsService;
+
+    @Autowired
+    private EmailVerificationService emailVerificationService;
 
     @Value("${fixhomi.notification.sms.msg91.delete-template-id:}")
     private String deleteTemplateId;
@@ -73,9 +93,9 @@ public class UserService {
     @Value("${fixhomi.verification.delete-otp.max-attempts:3}")
     private int deleteOtpMaxAttempts;
 
-    public UserProfileResponse getUserProfile(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
+    public UserProfileResponse getUserProfile(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
         return new UserProfileResponse(
                 user.getId(),
@@ -94,9 +114,9 @@ public class UserService {
     }
 
     @Transactional
-    public MessageResponse changePassword(String email, ChangePasswordRequest request) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
+    public MessageResponse changePassword(Long userId, ChangePasswordRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
         boolean hasExistingPassword = user.getPasswordHash() != null && !user.getPasswordHash().isBlank();
 
@@ -116,60 +136,33 @@ public class UserService {
         userRepository.save(user);
 
         String action = hasExistingPassword ? "changed" : "set";
-        logger.info("Password {} successfully for user: {}", action, email);
+        logger.info("Password {} successfully for user: userId={}", action, userId);
 
         return new MessageResponse("Password " + action + " successfully");
     }
 
     @Transactional
-    public UserProfileResponse updateProfile(String email, UpdateProfileRequest request) {
-        final User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
+    public UserProfileResponse updateProfile(Long userId, UpdateProfileRequest request) {
+        final User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
         if (request.getFullName() != null && !request.getFullName().isBlank()) {
             user.setFullName(request.getFullName().trim());
-            logger.debug("Updating fullName for user: {}", email);
+            logger.debug("Updating fullName for user: userId={}", userId);
         }
 
         if (request.getPhoneNumber() != null) {
-            String normalizedNew = User.normalizePhoneNumber(request.getPhoneNumber());
-            String currentPhone = user.getPhoneNumber(); // already normalized in DB
-            boolean phoneIsChanging = normalizedNew != null && !normalizedNew.isBlank()
-                    && (currentPhone == null || !currentPhone.equals(normalizedNew));
-
-            if (normalizedNew != null && !normalizedNew.isBlank()) {
-                // Only block if another active user has this phone VERIFIED
-                if (!normalizedNew.equals(user.getPhoneNumber())) {
-                    if (userRepository.existsByPhoneNumberAndIsPhoneVerifiedTrueAndIsActiveTrue(normalizedNew)) {
-                        throw new DuplicateResourceException("User", "phoneNumber", request.getPhoneNumber());
-                    }
-                    // Clear unverified phone from old owner so this user can claim it
-                    final Long currentUserId = user.getId();
-                    userRepository.findByPhoneNumberAndIsActiveTrue(normalizedNew).ifPresent(oldUser -> {
-                        if (!oldUser.getId().equals(currentUserId) && !Boolean.TRUE.equals(oldUser.getIsPhoneVerified())) {
-                            logger.info("Clearing unverified phone {} from user {} for profile update",
-                                    normalizedNew, oldUser.getId());
-                            oldUser.setPhoneNumber(null);
-                            oldUser.setIsPhoneVerified(false);
-                            userRepository.save(oldUser);
-                        }
-                    });
-                }
-                user.setPhoneNumber(normalizedNew);
-            } else {
-                user.setPhoneNumber(null);
-            }
-
-            if (phoneIsChanging) {
-                user.setIsPhoneVerified(false);
-                logger.info("Phone number changed for user: {} — phone verification reset", email);
-            }
-
-            logger.debug("Updating phoneNumber for user: {}", email);
+            // Phone changes are NOT allowed through the plain profile update.
+            // The verify-then-replace flow (POST /api/users/phone/change/*) is
+            // the only writer: the number and its verified flag change together,
+            // atomically, only after the NEW number passes OTP. Ignoring (rather
+            // than rejecting) keeps older app builds working for their other
+            // profile fields — their phone edit becomes a visible no-op.
+            logger.info("Ignoring phoneNumber in profile update for user: userId={} — phone changes require the OTP change flow", userId);
         }
 
         User savedUser = userRepository.save(user);
-        logger.info("Profile updated successfully for user: {}", email);
+        logger.info("Profile updated successfully for user: userId={}", userId);
 
         return new UserProfileResponse(
                 savedUser.getId(),
@@ -184,6 +177,84 @@ public class UserService {
                 savedUser.getUpdatedAt(),
                 savedUser.getLastLoginAt(),
                 savedUser.getPasswordHash() != null && !savedUser.getPasswordHash().isBlank()
+        );
+    }
+
+    /**
+     * Set or change a USER's email after signup.
+     *
+     * <p>Phone-only users add an email here; any user may change theirs. In every
+     * case the email is stored UNVERIFIED and a fresh verification link is sent —
+     * so changing an already-verified email re-triggers verification. Email is
+     * unique across all ACTIVE users (strict — matches the Mongo sparse-unique
+     * index, so JAuth and Mongo can never disagree). The email VALUE is mirrored
+     * into the Mongo profile by the NoeFix caller; the verified flag stays
+     * authoritative here in JAuth.
+     *
+     * <p>Edge cases:
+     * <ul>
+     *   <li>Same email re-submitted + already verified → reject (nothing to do).</li>
+     *   <li>Same email re-submitted + not verified → just resend the link (rate-limited), no reset.</li>
+     *   <li>Email belongs to another active user → 409 (no silent reclaim).</li>
+     *   <li>On a genuine change, old verification tokens are invalidated so an old link can't verify the new address.</li>
+     * </ul>
+     */
+    @Transactional
+    public UserProfileResponse setEmail(Long userId, String rawEmail) {
+        final User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+
+        if (rawEmail == null || rawEmail.isBlank()) {
+            throw new VerificationException("Email is required");
+        }
+        final String norm = rawEmail.trim().toLowerCase();
+        final String current = user.getEmail();
+
+        // Same email re-submitted.
+        if (current != null && current.equalsIgnoreCase(norm)) {
+            if (Boolean.TRUE.equals(user.getIsEmailVerified())) {
+                throw new VerificationException("This email is already set and verified.");
+            }
+            // Unverified — resend the link (rate-limited to prevent spam); no DB change.
+            emailVerificationService.sendVerificationEmail(userId);
+            logger.info("Email unchanged but unverified — resent verification link: userId={}", userId);
+            return toProfileResponse(user);
+        }
+
+        // New or changed email — strict uniqueness across all ACTIVE users.
+        userRepository.findByEmailAndIsActiveTrue(norm).ifPresent(other -> {
+            if (!other.getId().equals(userId)) {
+                throw new DuplicateResourceException("User", "email", rawEmail);
+            }
+        });
+
+        user.setEmail(norm);
+        user.setIsEmailVerified(false);
+        final User saved = userRepository.save(user);
+        logger.info("Email {} for user: userId={} — verification reset, sending link",
+                current == null ? "added" : "changed", userId);
+
+        // Fresh link; skips resend-rate-limit and invalidates old tokens internally.
+        emailVerificationService.sendVerificationOnEmailSet(userId);
+
+        return toProfileResponse(saved);
+    }
+
+    /** Build the standard profile response from a User entity. */
+    private UserProfileResponse toProfileResponse(User u) {
+        return new UserProfileResponse(
+                u.getId(),
+                u.getEmail(),
+                u.getPhoneNumber(),
+                u.getFullName(),
+                u.getRole(),
+                u.getIsActive(),
+                u.getIsEmailVerified(),
+                u.getIsPhoneVerified(),
+                u.getCreatedAt(),
+                u.getUpdatedAt(),
+                u.getLastLoginAt(),
+                u.getPasswordHash() != null && !u.getPasswordHash().isBlank()
         );
     }
 
@@ -367,9 +438,9 @@ public class UserService {
      * OTP is generated locally, persisted to database, and sent via SMS.
      */
     @Transactional
-    public String requestDeleteAccountOtp(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
+    public String requestDeleteAccountOtp(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
         String phoneNumber = user.getPhoneNumber();
         if (phoneNumber == null || phoneNumber.isBlank()) {
@@ -397,8 +468,8 @@ public class UserService {
             throw new RuntimeException("Failed to send OTP. Please try again later.");
         }
 
-        logger.info("Delete account OTP sent for user: {} to phone: {}",
-                email, maskPhoneNumber(phoneNumber));
+        logger.info("Delete account OTP sent for user: userId={} to phone: {}",
+                userId, maskPhoneNumber(phoneNumber));
 
         return maskPhoneNumber(phoneNumber);
     }
@@ -408,9 +479,9 @@ public class UserService {
      * OTP is verified from database.
      */
     @Transactional
-    public MessageResponse deleteAccountWithOtp(String email, DeleteAccountRequest request) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
+    public MessageResponse deleteAccountWithOtp(Long userId, DeleteAccountRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
         String phoneNumber = user.getPhoneNumber();
         if (phoneNumber == null || phoneNumber.isBlank()) {
@@ -442,7 +513,7 @@ public class UserService {
         if (!MessageDigest.isEqual(otpEntry.getOtp().getBytes(StandardCharsets.UTF_8),
                 request.getOtp().getBytes(StandardCharsets.UTF_8))) {
             deleteAccountOtpRepository.save(otpEntry);
-            logger.warn("Invalid OTP attempt for account deletion. User: {}", email);
+            logger.warn("Invalid OTP attempt for account deletion. User: userId={}", userId);
             throw new InvalidPasswordException("Invalid or expired OTP. Please request a new code.");
         }
 
@@ -454,7 +525,7 @@ public class UserService {
         String reason = request.getReason() != null ? request.getReason() : "User requested deletion";
         performSoftDelete(user, reason);
 
-        logger.info("Account deleted for user: {} (ID: {}) - OTP verified", email, user.getId());
+        logger.info("Account deleted for user: userId={} - OTP verified", user.getId());
 
         return new MessageResponse("Account deleted successfully. We're sorry to see you go.");
     }
@@ -467,8 +538,8 @@ public class UserService {
         return "******" + lastFour;
     }
 
-    public boolean isUserAuthorizedForDeletion(String currentEmail, Long targetUserId) {
-        User currentUser = userRepository.findByEmail(currentEmail).orElse(null);
+    public boolean isUserAuthorizedForDeletion(Long currentUserId, Long targetUserId) {
+        User currentUser = userRepository.findById(currentUserId).orElse(null);
         if (currentUser == null) return false;
         if (currentUser.getId().equals(targetUserId)) return true;
         return currentUser.getRole() == Role.ADMIN;
@@ -483,6 +554,31 @@ public class UserService {
         logger.info("Account deleted for user ID: {}", userId);
 
         return new MessageResponse("Account deleted successfully");
+    }
+
+    /**
+     * Admin-only hard delete: permanently removes the user row and all
+     * child records (refresh tokens, trusted devices, sessions, delete-OTPs,
+     * login lockouts). Irreversible — intended for cleaning up tombstoned
+     * accounts where compliance retention is not required.
+     */
+    @Transactional
+    public MessageResponse hardDeleteUserById(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+
+        int tokens = refreshTokenRepository.deleteAllByUserId(userId);
+        int devices = trustedDeviceRepository.deleteAllByUserId(userId);
+        int sessions = userSessionRepository.deleteAllByUserId(userId);
+        int otps = deleteAccountOtpRepository.deleteAllByUserId(userId);
+        int lockouts = loginLockoutRepository.deleteAllByUserId(userId);
+
+        userRepository.delete(user);
+
+        logger.warn("HARD DELETE — user ID {} (email: {}). Removed: {} tokens, {} devices, {} sessions, {} delete-OTPs, {} lockouts.",
+            userId, user.getEmail(), tokens, devices, sessions, otps, lockouts);
+
+        return new MessageResponse("User permanently deleted");
     }
 
     private void performSoftDelete(User user, String reason) {

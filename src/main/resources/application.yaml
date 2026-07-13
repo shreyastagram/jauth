@@ -72,7 +72,7 @@ jwt:
   issuer: fixhomi-auth-service
   refresh-token:
     expiration:
-      days: 7  # Refresh token validity in days
+      days: 60  # Refresh token validity in days (~2 months; rotated + server-revocable)
 
 # Server Configuration
 server:

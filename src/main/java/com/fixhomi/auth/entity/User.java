@@ -2,7 +2,6 @@ package com.fixhomi.auth.entity;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
@@ -26,9 +25,10 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotBlank(message = "Email is required")
+    // Email is OPTIONAL — phone-only signup users have no email (stored as NULL, never "").
+    // Unique index still applies; Postgres/H2 allow multiple NULLs under a unique index.
     @Email(message = "Invalid email format")
-    @Column(nullable = false, unique = true, length = 100)
+    @Column(unique = true, length = 100)
     private String email;
 
     @Column(name = "phone_number", length = 20)
@@ -38,7 +38,10 @@ public class User {
     @Column(length = 60)
     private String passwordHash;
 
-    @NotBlank(message = "Full name is required")
+    // Full name may be EMPTY ("") for phone-OTP signup users until they complete
+    // their profile — booking a service request requires a filled name. The column
+    // stays NOT NULL; blank is only ever "" and never null.
+    @Size(max = 100, message = "Full name must be at most 100 characters")
     @Column(nullable = false, length = 100)
     private String fullName;
 

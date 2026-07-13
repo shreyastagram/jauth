@@ -210,8 +210,8 @@ public class SessionController {
             throw new AuthenticationException("Not authenticated");
         }
 
-        String email = auth.getName();
-        return userRepository.findByEmail(email)
+        Long userId = Long.valueOf(auth.getName());
+        return userRepository.findById(userId)
                 .orElseThrow(() -> new AuthenticationException("User not found"));
     }
 

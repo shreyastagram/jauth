@@ -99,6 +99,9 @@ public class SecurityConfig {
                         "/api/auth/login/phone/verify",
                         "/api/auth/login/email/send-otp",
                         "/api/auth/login/email/verify",
+                        // Phone-number SIGNUP endpoints (USER-only; enforced in service)
+                        "/api/auth/signup/phone/send-otp",
+                        "/api/auth/signup/phone/verify",
                         "/oauth2/**",
                         "/login/oauth2/**",
                         "/actuator/health",
