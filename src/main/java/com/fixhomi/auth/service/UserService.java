@@ -152,13 +152,30 @@ public class UserService {
         }
 
         if (request.getPhoneNumber() != null) {
-            // Phone changes are NOT allowed through the plain profile update.
+            // Phone CHANGES are NOT allowed through the plain profile update.
             // The verify-then-replace flow (POST /api/users/phone/change/*) is
-            // the only writer: the number and its verified flag change together,
-            // atomically, only after the NEW number passes OTP. Ignoring (rather
-            // than rejecting) keeps older app builds working for their other
-            // profile fields — their phone edit becomes a visible no-op.
-            logger.info("Ignoring phoneNumber in profile update for user: userId={} — phone changes require the OTP change flow", userId);
+            // the only writer that may REPLACE a number: the number and its
+            // verified flag change together, atomically, only after OTP.
+            //
+            // ADD-ONLY carve-out: pre-1.0.5 app builds have no phone-change UI.
+            // Their only way to attach a FIRST phone is this profile update,
+            // followed by the legacy /api/auth/otp/send + /verify (which OTPs
+            // the STORED number — possession is proven before the verified flag
+            // flips). So an account with NO current number may store one here,
+            // always unverified. A verified number still cannot be replaced.
+            boolean hasPhone = user.getPhoneNumber() != null && !user.getPhoneNumber().isBlank()
+                    && !user.getPhoneNumber().startsWith("del_");
+            String normalized = User.normalizePhoneNumber(request.getPhoneNumber());
+            if (!hasPhone && normalized != null && normalized.matches("[0-9]{10}")) {
+                if (userRepository.findByPhoneNumberAndIsActiveTrue(normalized).isPresent()) {
+                    throw new DuplicateResourceException("This phone number is already in use by another account");
+                }
+                user.setPhoneNumber(normalized);
+                user.setIsPhoneVerified(false);
+                logger.info("Added phone (unverified) via profile update for user: userId={} — legacy add flow, OTP verification still required", userId);
+            } else {
+                logger.info("Ignoring phoneNumber in profile update for user: userId={} — phone changes require the OTP change flow", userId);
+            }
         }
 
         User savedUser = userRepository.save(user);

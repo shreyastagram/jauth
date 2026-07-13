@@ -159,6 +159,14 @@ public class PhoneVerificationService {
         otpEntry.setVerified(true);
         phoneOtpRepository.save(otpEntry);
 
+        // Commit-time cross-user re-check (mirrors the change flow): if another
+        // active account verified this number in the meantime, do not create a
+        // second verified holder. This user is necessarily unverified here, so
+        // any verified holder is a different account.
+        if (userRepository.existsByPhoneNumberAndIsPhoneVerifiedTrueAndIsActiveTrue(phoneNumber)) {
+            throw new VerificationException("This phone number is already in use by another account");
+        }
+
         // Mark user's phone as verified
         user.setIsPhoneVerified(true);
         userRepository.save(user);
