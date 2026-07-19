@@ -34,6 +34,9 @@ public class RefreshTokenService {
     @Value("${jwt.refresh-token.expiration.days:7}")
     private int refreshTokenExpirationDays;
 
+    @Value("${jwt.refresh-token.rotation-grace-seconds:45}")
+    private long rotationGraceSeconds;
+
     /**
      * Create a new refresh token for a user.
      *
@@ -75,8 +78,26 @@ public class RefreshTokenService {
      */
     @Transactional
     public RefreshToken rotateRefreshToken(String tokenValue) {
-        RefreshToken oldToken = refreshTokenRepository.findValidToken(tokenValue, LocalDateTime.now())
-                .orElseThrow(() -> new AuthenticationException("Invalid or expired refresh token"));
+        LocalDateTime now = LocalDateTime.now();
+
+        RefreshToken oldToken = refreshTokenRepository.findValidToken(tokenValue, now)
+                .orElseGet(() -> {
+                    // Rotation grace window: a second (racing) refresh with a just-rotated
+                    // token gets the SAME successor instead of a 401 wrongful logout.
+                    // Only applies to tokens revoked BY ROTATION (rotatedAt set) —
+                    // logout-revoked tokens (rotatedAt == null) never get grace.
+                    RefreshToken graced = findGraceWindowSuccessor(tokenValue, now);
+                    if (graced != null) {
+                        return graced;
+                    }
+                    throw new AuthenticationException("Invalid or expired refresh token");
+                });
+
+        // Grace hit: oldToken IS the still-valid successor — return it as-is (idempotent,
+        // no new pair minted, no token chain growth).
+        if (!oldToken.getToken().equals(tokenValue)) {
+            return oldToken;
+        }
 
         User user = oldToken.getUser();
 
@@ -87,15 +108,36 @@ public class RefreshTokenService {
             throw new AuthenticationException("Account is deactivated. Please contact support.");
         }
 
-        // Revoke the old token
-        oldToken.setRevoked(true);
-        refreshTokenRepository.save(oldToken);
-
         // Create new token
         RefreshToken newToken = createRefreshToken(user);
 
+        // Revoke the old token, recording rotation metadata for the grace window
+        oldToken.setRevoked(true);
+        oldToken.setRotatedAt(now);
+        oldToken.setReplacedByToken(newToken.getToken());
+        refreshTokenRepository.save(oldToken);
+
         logger.info("Rotated refresh token for user: {}", user.getEmail());
         return newToken;
+    }
+
+    /**
+     * If the token was revoked by rotation within the grace window and its successor
+     * is still valid, return the successor. Otherwise return null.
+     */
+    private RefreshToken findGraceWindowSuccessor(String tokenValue, LocalDateTime now) {
+        return refreshTokenRepository.findByToken(tokenValue)
+                .filter(old -> Boolean.TRUE.equals(old.getRevoked()))
+                .filter(old -> old.getRotatedAt() != null)
+                .filter(old -> java.time.Duration.between(old.getRotatedAt(), now).getSeconds() <= rotationGraceSeconds)
+                .filter(old -> old.getReplacedByToken() != null)
+                .flatMap(old -> refreshTokenRepository.findValidToken(old.getReplacedByToken(), now)
+                        .map(successor -> {
+                            logger.info("Refresh grace window: returning existing successor for user {}",
+                                    successor.getUser().getEmail());
+                            return successor;
+                        }))
+                .orElse(null);
     }
 
     /**
@@ -168,7 +210,10 @@ public class RefreshTokenService {
     @Scheduled(fixedRate = 1800000) // 30 minutes
     @Transactional
     public void cleanupExpiredTokens() {
-        int deleted = refreshTokenRepository.deleteExpiredOrRevoked(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        // Keep rotation-revoked tokens until safely past the grace window (+30s buffer)
+        LocalDateTime graceCutoff = now.minusSeconds(rotationGraceSeconds + 30);
+        int deleted = refreshTokenRepository.deleteExpiredOrRevoked(now, graceCutoff);
         if (deleted > 0) {
             logger.info("Cleaned up {} expired/revoked refresh tokens", deleted);
         }

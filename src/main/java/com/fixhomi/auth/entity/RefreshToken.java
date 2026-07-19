@@ -35,6 +35,20 @@ public class RefreshToken {
     @Column(nullable = false)
     private Boolean revoked = false;
 
+    /**
+     * When this token was revoked due to rotation (null if never rotated,
+     * e.g. revoked by logout). Used for the rotation grace window.
+     */
+    @Column(name = "rotated_at")
+    private LocalDateTime rotatedAt;
+
+    /**
+     * Token string of the successor created during rotation (null if not rotated).
+     * Used to return the same successor to a late duplicate refresh request.
+     */
+    @Column(name = "replaced_by_token", length = 255)
+    private String replacedByToken;
+
     @CreatedDate
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -98,6 +112,22 @@ public class RefreshToken {
 
     public void setRevoked(Boolean revoked) {
         this.revoked = revoked;
+    }
+
+    public LocalDateTime getRotatedAt() {
+        return rotatedAt;
+    }
+
+    public void setRotatedAt(LocalDateTime rotatedAt) {
+        this.rotatedAt = rotatedAt;
+    }
+
+    public String getReplacedByToken() {
+        return replacedByToken;
+    }
+
+    public void setReplacedByToken(String replacedByToken) {
+        this.replacedByToken = replacedByToken;
     }
 
     public LocalDateTime getCreatedAt() {

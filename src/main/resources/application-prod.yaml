@@ -82,6 +82,7 @@ jwt:
     expiration:
       days: 60   # ~2 months. Safe because tokens rotate on every refresh and are
                  # revoked server-side on logout/delete. See note in AUTH doc.
+    rotation-grace-seconds: 45  # Window in which a just-rotated token returns its successor instead of 401
 
 # Server Configuration
 server:

@@ -44,10 +44,12 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     /**
      * Delete all expired or revoked tokens (for cleanup jobs).
+     * Revoked-by-rotation tokens still inside the grace window (rotatedAt >= graceCutoff)
+     * are kept so the rotation grace lookup can still find them.
      */
     @Modifying
-    @Query("DELETE FROM RefreshToken rt WHERE rt.revoked = true OR rt.expiresAt < :now")
-    int deleteExpiredOrRevoked(@Param("now") LocalDateTime now);
+    @Query("DELETE FROM RefreshToken rt WHERE (rt.revoked = true AND (rt.rotatedAt IS NULL OR rt.rotatedAt < :graceCutoff)) OR rt.expiresAt < :now")
+    int deleteExpiredOrRevoked(@Param("now") LocalDateTime now, @Param("graceCutoff") LocalDateTime graceCutoff);
 
     /**
      * Hard-delete all refresh tokens for a specific user ID. Used by admin hard-delete.
