@@ -135,6 +135,16 @@ public class UserService {
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
 
+        // Invalidate all existing sessions on a credential change (M-J1). Mirrors
+        // the password-RESET flow, which already revokes here. Without this, a
+        // password change left every previously-issued refresh token valid — a
+        // stolen/shared session survived the very act meant to lock it out. The
+        // current device simply re-authenticates on its next refresh.
+        if (hasExistingPassword) {
+            int revoked = refreshTokenService.revokeAllUserTokens(userId);
+            logger.info("Revoked {} refresh token(s) after password change for userId={}", revoked, userId);
+        }
+
         String action = hasExistingPassword ? "changed" : "set";
         logger.info("Password {} successfully for user: userId={}", action, userId);
 
