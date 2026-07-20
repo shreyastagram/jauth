@@ -1,5 +1,6 @@
 package com.fixhomi.auth.service;
 
+import com.fixhomi.auth.security.TokenHasher;
 import com.fixhomi.auth.entity.PasswordResetOtp;
 import com.fixhomi.auth.entity.PasswordResetToken;
 import com.fixhomi.auth.entity.User;
@@ -115,8 +116,9 @@ public class PasswordResetService {
         String token = generateToken();
         LocalDateTime expiresAt = LocalDateTime.now().plusHours(tokenExpirationHours);
 
+        // Store the HASH; the raw token goes only to the email link below (M-J5).
         PasswordResetToken resetToken = new PasswordResetToken(
-                token, user.getId(), user.getEmail(), expiresAt);
+                TokenHasher.sha256Hex(token), user.getId(), user.getEmail(), expiresAt);
         tokenRepository.save(resetToken);
 
         String mobileResetUrl = frontendBaseUrl + "/reset-password?token=" + token;
@@ -138,7 +140,7 @@ public class PasswordResetService {
     @Transactional
     public void resetPassword(String token, String newPassword) {
         PasswordResetToken resetToken = tokenRepository
-                .findValidToken(token, LocalDateTime.now())
+                .findValidToken(TokenHasher.sha256Hex(token), LocalDateTime.now())
                 .orElseThrow(() -> new VerificationException("Invalid or expired reset token"));
 
         resetToken.setUsed(true);
@@ -162,7 +164,7 @@ public class PasswordResetService {
      * Validate token without using it (for frontend pre-check).
      */
     public boolean validateToken(String token) {
-        return tokenRepository.findValidToken(token, LocalDateTime.now()).isPresent();
+        return tokenRepository.findValidToken(TokenHasher.sha256Hex(token), LocalDateTime.now()).isPresent();
     }
 
     // ==================== OTP-BASED PASSWORD RESET (via SMS) ====================
