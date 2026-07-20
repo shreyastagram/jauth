@@ -1,5 +1,6 @@
 package com.fixhomi.auth.service;
 
+import com.fixhomi.auth.security.TokenHasher;
 import com.fixhomi.auth.entity.EmailVerificationToken;
 import com.fixhomi.auth.entity.User;
 import com.fixhomi.auth.exception.ResourceNotFoundException;
@@ -127,8 +128,9 @@ public class EmailVerificationService {
         String token = generateToken();
         LocalDateTime expiresAt = LocalDateTime.now().plusHours(tokenExpirationHours);
 
+        // Store the HASH; the raw token goes only to the verification link (M-J5).
         EmailVerificationToken verificationToken = new EmailVerificationToken(
-                token, user.getId(), user.getEmail(), expiresAt);
+                TokenHasher.sha256Hex(token), user.getId(), user.getEmail(), expiresAt);
         tokenRepository.save(verificationToken);
 
         // Build verification URL
@@ -157,7 +159,8 @@ public class EmailVerificationService {
         logger.info("📧 Attempting to verify email with token: {}...", token.substring(0, Math.min(10, token.length())));
         
         // First check if token exists at all (including verified ones)
-        var anyToken = tokenRepository.findByToken(token);
+        final String tokenHash = TokenHasher.sha256Hex(token);
+        var anyToken = tokenRepository.findByToken(tokenHash);
         if (anyToken.isEmpty()) {
             logger.error("❌ Token not found in database at all. Token may have been created in a different database.");
             throw new VerificationException("Invalid or expired verification token");
@@ -173,7 +176,7 @@ public class EmailVerificationService {
         }
         
         EmailVerificationToken verificationToken = tokenRepository
-                .findByTokenAndVerifiedFalse(token)
+                .findByTokenAndVerifiedFalse(tokenHash)
                 .orElseThrow(() -> new VerificationException("Invalid or expired verification token"));
 
         if (verificationToken.isExpired()) {
