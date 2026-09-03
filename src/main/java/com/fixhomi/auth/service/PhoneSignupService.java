@@ -237,7 +237,8 @@ public class PhoneSignupService {
         return "****" + phoneNumber.substring(phoneNumber.length() - 4);
     }
 
-    @Scheduled(fixedRate = 600000)
+    // Hourly cleanup (kept infrequent so it doesn't keep Neon compute awake).
+    @Scheduled(fixedRate = 3600000)
     @Transactional
     public void cleanupExpiredEntries() {
         int removed = phoneSignupOtpRepository.deleteExpiredOtps(LocalDateTime.now());
