@@ -112,8 +112,9 @@ services:
       - key: RATE_LIMIT_ENABLED
         value: true
     
-    # Health check endpoint
-    healthCheckPath: /actuator/health
+    # Health check endpoint (liveness — does not touch the DB, so frequent
+    # health pings don't keep Neon compute awake)
+    healthCheckPath: /actuator/health/liveness
 
 # NOTE: We're using Neon PostgreSQL instead of Render's database
 # Remove or comment out this section if you don't need Render's PostgreSQL

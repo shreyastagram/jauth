@@ -20,17 +20,18 @@ spring:
     password: ${DATABASE_PASSWORD}
     driver-class-name: org.postgresql.Driver
     
-    # Connection pool settings (HikariCP) — tuned for Neon Launch plan
+    # Connection pool (HikariCP). minimum-idle=0 and no keepalive let idle
+    # connections drain so Neon compute can autosuspend (scale-to-zero) when
+    # there is no traffic. A keepalive/test-query on idle connections would ping
+    # Neon continuously and prevent autosuspend.
     hikari:
-      maximum-pool-size: 25       # Neon Launch plan supports higher concurrency
-      minimum-idle: 5             # Keep 5 idle connections ready
-      idle-timeout: 30000         # 30 seconds
-      connection-timeout: 30000   # 30 seconds (gives Neon cold-start time)
-      max-lifetime: 180000        # 3 minutes (well under Neon's ~5 min kill)
-      keepalive-time: 30000       # Ping every 30s to keep connections alive
-      validation-timeout: 5000    # 5 second validation timeout
-      leak-detection-threshold: 30000  # Warn if connection held > 30s
-      connection-test-query: SELECT 1  # Validates connections before use
+      maximum-pool-size: 25
+      minimum-idle: 0
+      idle-timeout: 60000         # close idle connections after 60s
+      connection-timeout: 30000   # allow time for Neon to resume from autosuspend
+      max-lifetime: 300000        # 5 minutes
+      validation-timeout: 5000
+      leak-detection-threshold: 30000
   
   # Disable H2 Console in production
   h2:
