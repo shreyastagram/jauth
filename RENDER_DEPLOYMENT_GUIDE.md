@@ -1,3 +1,5 @@
+> **Outdated (checked against the code on 2026-10-02).** Parts of this document no longer match the code — env var names, refresh-token lifetime (actual: 60 days) and the database setup. For current information see [docs/onboarding/](docs/onboarding/README.md), especially [09-configuration.md](docs/onboarding/09-configuration.md).
+
 # 🚀 Deploying FixHomi Auth Service to Render
 
 This guide walks you through deploying the FixHomi Auth Service to Render using Docker.

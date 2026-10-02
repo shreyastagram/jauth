@@ -1,3 +1,5 @@
+> **Historical (January 2026).** Kept for design/testing history. For the current behaviour of the service see [onboarding/](onboarding/README.md).
+
 # FixHomi Full System Architecture
 
 > **Complete integration guide: Java Auth + Node.js Backend + React Native**  

@@ -1,3 +1,5 @@
+> **Outdated (checked against the code on 2026-10-02).** Several paths in this document do not exist in the service (e.g. `/api/verification/*`, `/api/auth/token/*`), and the refresh-token lifetime is 60 days, not 7. For current information see [onboarding/](onboarding/README.md), especially [07-how-other-services-use-auth.md](onboarding/07-how-other-services-use-auth.md) and [03-api-reference.md](onboarding/03-api-reference.md).
+
 # FixHomi Auth Service - Node.js Integration Guide
 
 > **Complete integration guide for Node.js/Express backend developers**  
