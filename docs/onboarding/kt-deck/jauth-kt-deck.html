@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+</head>
+<body>
+<title>jauth KT Session</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<script src="https://cdn.tailwindcss.com/3.4.16"></script>
+<script>
+  // In the PDF render (#print) Chrome evaluates width media queries against its default ~756px
+  // paper width, not @page size, so every breakpoint is forced on to keep the desktop layout.
+  const PRINT_LAYOUT = location.hash === "#print";
+  tailwind.config = {
+    theme: {
+      ...(PRINT_LAYOUT ? { screens: { sm: { raw: "all" }, md: { raw: "all" }, lg: { raw: "all" } } } : {}),
+      extend: {
+        colors: {
+          bg: "var(--bg)", surface: "var(--surface)", surface2: "var(--surface-2)", ink: "var(--ink)",
+          muted: "var(--muted)", line: "var(--line)", accent: "var(--accent)", accentsoft: "var(--accent-soft)",
+          brass: "var(--brass)", brasssoft: "var(--brass-soft)", ok: "var(--ok)", no: "var(--no)",
+          codebg: "var(--code-bg)", codefg: "var(--code-fg)",
+        },
+        fontFamily: {
+          display: ['"Bricolage Grotesque"', '"Segoe UI"', "system-ui", "sans-serif"],
+          body: ['"IBM Plex Sans"', '"Segoe UI"', "system-ui", "sans-serif"],
+          mono: ['"IBM Plex Mono"', "ui-monospace", "Menlo", "monospace"],
+        },
+        keyframes: { rise: { "0%": { opacity: ".4", transform: "translateY(6px)" }, "100%": { opacity: "1", transform: "none" } } },
+        animation: { rise: "rise .28s ease both" },
+      },
+    },
+  };
+</script>
+<style>
+/* Layout: presenter deck — sticky top bar with slide tabs, one slide at a time, sticky bottom bar with Previous / Next. */
+:root {
+  --bg: #f5f6f8; --surface: #ffffff; --surface-2: #eceff4; --ink: #161b26; --muted: #5a6273; --line: #d9dde5;
+  --accent: #2346d6; --accent-soft: #e3e8fb; --brass: #a8641a; --brass-soft: #f6ead8;
+  --ok: #1d7a4a; --no: #b3261e;
+  --code-bg: #0f1420; --code-fg: #dfe5f2; --code-key: #9fb4ff; --code-str: #f1c27d; --code-dim: #7d879c;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e121b; --surface: #161b27; --surface-2: #1d2433; --ink: #e8ecf4; --muted: #9aa3b5; --line: #2a3244;
+  --accent: #7d97ff; --accent-soft: #1f2a4d; --brass: #e2a457; --brass-soft: #3a2c19; --ok: #5ccf8f; --no: #ff8a80;
+  --code-bg: #0a0d14; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0e121b; --surface: #161b27; --surface-2: #1d2433; --ink: #e8ecf4; --muted: #9aa3b5; --line: #2a3244;
+  --accent: #7d97ff; --accent-soft: #1f2a4d; --brass: #e2a457; --brass-soft: #3a2c19; --ok: #5ccf8f; --no: #ff8a80;
+  --code-bg: #0a0d14; color-scheme: dark; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; }
+h1, h2, h3 { text-wrap: balance; }
+.k { color: var(--code-key); } .s { color: var(--code-str); } .c { color: var(--code-dim); }
+/* architecture diagram */
+.d-box { fill: var(--surface-2); stroke: var(--line); stroke-width: 1.5; }
+.d-core { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2; }
+.d-ext { fill: var(--surface); stroke: var(--line); stroke-dasharray: 4 3; stroke-width: 1.5; }
+.d-title { font: 700 15px "Bricolage Grotesque", system-ui, sans-serif; fill: var(--ink); }
+.d-sub { font: 400 11.5px "IBM Plex Mono", ui-monospace, monospace; fill: var(--muted); }
+.d-edge { stroke: var(--muted); stroke-width: 1.6; fill: none; }
+.d-edge-a { stroke: var(--accent); stroke-width: 2; fill: none; }
+.d-secret { stroke: var(--brass); stroke-width: 2; fill: none; stroke-dasharray: 6 4; }
+.d-lab { font: 500 11.5px "IBM Plex Sans", system-ui, sans-serif; fill: var(--muted); }
+.d-lab-a { font: 600 11.5px "IBM Plex Sans", system-ui, sans-serif; fill: var(--accent); }
+.d-lab-s { font: 600 11.5px "IBM Plex Mono", ui-monospace, monospace; fill: var(--brass); }
+.d-arrow { fill: var(--muted); } .d-arrow-a { fill: var(--accent); }
+.no-scrollbar { scrollbar-width: none; } .no-scrollbar::-webkit-scrollbar { display: none; }
+@media (prefers-reduced-motion: reduce) { .animate-rise { animation: none !important; } }
+/* PDF / print layout: every slide on its own landscape page, deck chrome hidden */
+@page { size: 1440px 1260px; margin: 28px 40px; }
+@media print {
+  html, body { height: auto; }
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .no-print { display: none !important; }
+  .print-page { break-before: page; }
+  .print-page:first-child { break-before: auto; }
+  .animate-rise { animation: none !important; }
+  pre, table, .avoid-break { break-inside: avoid; }
+  pre { white-space: pre-wrap !important; overflow-wrap: anywhere; }
+}
+</style>
+
+<div id="app" class="min-h-full flex flex-col"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.umd.js"></script>
+<script>
+const { useState, useEffect, useCallback } = React;
+const html = htm.bind(React.createElement);
+
+/* ---------- shared UI ---------- */
+const Eyebrow = ({ children }) => html`<div class="font-mono text-xs font-semibold uppercase tracking-widest text-accent">${children}</div>`;
+const H1 = ({ children }) => html`<h1 class="font-display font-extrabold text-[clamp(30px,4.4vw,52px)] leading-[1.05] tracking-tight">${children}</h1>`;
+const H2 = ({ children }) => html`<h2 class="font-display font-bold text-[clamp(24px,3vw,34px)] leading-tight tracking-tight">${children}</h2>`;
+const H3 = ({ children }) => html`<h3 class="font-display font-bold text-lg text-ink">${children}</h3>`;
+const Lede = ({ children }) => html`<p class="text-lg text-muted max-w-[68ch]">${children}</p>`;
+const Panel = ({ children, cls = "" }) => html`<div class=${"min-w-0 rounded-xl border border-line bg-surface p-4 flex flex-col gap-2 text-[15px] text-muted " + cls}>${children}</div>`;
+const B = ({ children }) => html`<strong class="font-semibold text-ink">${children}</strong>`;
+const C = ({ children }) => html`<code class="font-mono text-[0.88em] text-ink">${children}</code>`;
+const List = ({ items }) => html`<ul class="list-disc pl-5 flex flex-col gap-1">${items.map((x, i) => html`<li key=${i}>${x}</li>`)}</ul>`;
+const Chip = ({ children, tone = "" }) => {
+  const t = tone === "a" ? "bg-accentsoft text-accent" : tone === "b" ? "bg-brasssoft text-brass" : "bg-surface2 text-ink";
+  return html`<span class=${"inline-block font-mono text-[11.5px] font-semibold px-2 py-0.5 rounded-full " + t}>${children}</span>`;
+};
+const Say = ({ children }) => html`<p class="max-w-[80ch] rounded-r-lg border-l-[3px] border-brass bg-brasssoft px-4 py-2.5 text-[15px]"><b class="font-mono text-[11px] uppercase tracking-widest text-brass mr-2">Say</b>${children}</p>`;
+const Code = ({ children }) => html`<pre class="m-0 overflow-x-auto whitespace-pre rounded-xl bg-codebg text-codefg px-4 py-3.5 font-mono text-[13px] leading-relaxed" dangerouslySetInnerHTML=${{ __html: children }}></pre>`;
+const Slide = ({ children }) => html`<section class="max-w-[1120px] mx-auto flex flex-col gap-6 animate-rise">${children}</section>`;
+
+/* ---------- 1. Welcome ---------- */
+function Welcome({ go }) {
+  const agenda = ["What jauth is", "Architecture", "Inside the service", "Tokens & roles", "One request, end to end", "Run it locally", "Your reading list"];
+  const stats = [["50", "endpoints"], ["9", "controllers"], ["14", "tables"], ["5", "roles"], ["24 h", "access token"], ["60 d", "refresh token"]];
+  return html`<${Slide}>
+    <${Eyebrow}>KT session · Tejswita · October 2026<//>
+    <${H1}>jauth signs every FixHomi user in.<//>
+    <${Lede}>A Spring Boot service that owns identity: the <${B}>users<//> table, passwords, OTPs, Google and Apple sign-in, and the tokens that the mobile app, the Node backend, the admin panel and the website all trust.<//>
+    <div class="grid grid-cols-3 lg:grid-cols-6 rounded-xl border border-line bg-surface overflow-hidden">
+      ${stats.map(([v, l]) => html`<div key=${l} class="px-4 py-3.5 border-line [&:not(:first-child)]:border-l max-lg:[&:nth-child(4)]:border-l-0 max-lg:[&:nth-child(n+4)]:border-t">
+        <b class="block font-display font-extrabold text-3xl leading-tight tabular-nums">${v}</b><span class="text-[13px] text-muted">${l}</span></div>`)}
+    </div>
+    <div class="grid gap-4 sm:grid-cols-2">
+      <${Panel}><${H3}>jauth owns<//><${List} items=${[
+        html`Accounts: email, phone, password hash, <${B}>role<//>, active/verified flags`,
+        "Every way to prove identity: password, phone OTP, email OTP, phone signup, Google, Apple",
+        "Issuing and rotating tokens; password reset; account deletion",
+        "Role-based access to its own admin API"]} /><//>
+      <${Panel}><${H3}>jauth does not own<//><${List} items=${[
+        "Profiles, addresses, bookings, payments, service requests",
+        html`Those live in the <${B}>Node.js backend<//> and MongoDB`,
+        html`The link between the two: Mongo <${C}>_id<//> = jauth <${C}>users.id<//>`]} /><//>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
+      ${agenda.map((a, i) => html`<button key=${i} onClick=${() => go(i)} class="text-left rounded-lg border border-line bg-surface p-2.5 flex flex-col gap-1 text-sm font-medium hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
+        <i class="not-italic font-mono text-xs font-semibold text-accent">${String(i + 1).padStart(2, "0")}</i>${a}</button>`)}
+    </div>
+    <${Say}>Your first task touches the SUPPORT role. The role already exists, but today it grants nothing beyond a normal user. By slide 4 you'll know exactly where roles are checked.<//>
+  <//>`;
+}
+
+/* ---------- 2. Architecture ---------- */
+function Architecture() {
+  return html`<${Slide}>
+    <${Eyebrow}>Architecture<//>
+    <${H2}>jauth signs tokens. Everyone else trusts the signature.<//>
+    <div class="overflow-x-auto rounded-xl border border-line bg-surface p-2">
+      <svg viewBox="0 0 980 430" class="block w-full min-w-[760px] h-auto" role="img" aria-label="FixHomi architecture: clients call jauth and the Node backend; Node verifies jauth tokens with a shared secret; jauth stores data in PostgreSQL and sends SMS and email through MSG91 and Brevo.">
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-arrow"/></marker>
+          <marker id="ara" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="d-arrow-a"/></marker>
+        </defs>
+        <rect x="20" y="30" width="190" height="72" rx="10" class="d-box"/>
+        <text x="36" y="60" class="d-title">Mobile app</text><text x="36" y="80" class="d-sub">renfi · React Native</text>
+        <rect x="20" y="180" width="190" height="72" rx="10" class="d-box"/>
+        <text x="36" y="210" class="d-title">Website</text><text x="36" y="230" class="d-sub">flapage · Next.js</text>
+        <rect x="20" y="330" width="190" height="72" rx="10" class="d-box"/>
+        <text x="36" y="360" class="d-title">Admin panel</text><text x="36" y="380" class="d-sub">temp_admin · Vite</text>
+        <rect x="350" y="290" width="230" height="112" rx="10" class="d-box"/>
+        <text x="368" y="320" class="d-title">Node.js backend</text>
+        <text x="368" y="340" class="d-sub">noefi · Express · MongoDB</text>
+        <text x="368" y="362" class="d-sub">verifies JWTs locally:</text>
+        <text x="368" y="380" class="d-sub">jwt.verify(token, JWT_SECRET)</text>
+        <rect x="660" y="30" width="250" height="132" rx="12" class="d-core"/>
+        <text x="680" y="62" class="d-title">jauth (this repo)</text>
+        <text x="680" y="84" class="d-sub">Spring Boot 3.4 · Java 17</text>
+        <text x="680" y="104" class="d-sub">issues HS512 JWTs</text>
+        <text x="680" y="124" class="d-sub">auth.fixhomi.com · :8080 local</text>
+        <text x="680" y="144" class="d-sub">Render (Docker)</text>
+        <rect x="660" y="250" width="118" height="64" rx="10" class="d-ext"/>
+        <text x="674" y="276" class="d-title">PostgreSQL</text><text x="674" y="296" class="d-sub">Neon · H2 local</text>
+        <rect x="792" y="250" width="118" height="64" rx="10" class="d-ext"/>
+        <text x="806" y="276" class="d-title">MSG91 · Brevo</text><text x="806" y="296" class="d-sub">SMS · email</text>
+        <path d="M210 58 L656 58" class="d-edge-a" marker-end="url(#ara)"/>
+        <text x="300" y="50" class="d-lab-a">login · OTP · refresh · /users/me</text>
+        <path d="M210 88 C 300 88, 300 330, 346 330" class="d-edge" marker-end="url(#ar)"/>
+        <text x="236" y="134" class="d-lab">business APIs</text>
+        <path d="M210 210 C 430 210, 520 130, 656 130" class="d-edge-a" marker-end="url(#ara)"/>
+        <text x="318" y="198" class="d-lab-a">OTP login · account deletion</text>
+        <path d="M210 366 L346 366" class="d-edge" marker-end="url(#ar)"/>
+        <text x="230" y="358" class="d-lab">admin actions</text>
+        <path d="M580 310 C 640 310, 640 162, 700 166" class="d-edge-a" marker-end="url(#ara)"/>
+        <text x="592" y="232" class="d-lab-a">register · signup</text>
+        <text x="592" y="247" class="d-lab-a">sync · admin proxy</text>
+        <path d="M580 395 C 760 395, 935 300, 925 166" class="d-secret"/>
+        <text x="640" y="418" class="d-lab-s">same JWT_SECRET on both sides</text>
+        <path d="M720 162 L720 246" class="d-edge" marker-end="url(#ar)"/>
+        <path d="M850 162 L850 246" class="d-edge" marker-end="url(#ar)"/>
+      </svg>
+    </div>
+    <div class="grid gap-4 md:grid-cols-3">
+      <${Panel}><${H3}>Trust model<//><p>jauth signs tokens with <${C}>JWT_SECRET<//>. Node holds the same secret and checks every token itself, with <${B}>no call to jauth<//> per request. If the two secrets differ, every Node request fails.</p><//>
+      <${Panel}><${H3}>Who calls what<//><p>The app calls jauth directly for identity and Node for business. The admin panel only talks to Node, which forwards the admin's token to <${C}>/api/admin/users/**<//>.</p><//>
+      <${Panel}><${H3}>Environments<//><p><${C}>auth.fixhomi.com<//> ↔ <${C}>api.fixhomi.com<//> in prod. <${C}>jauth-1<//> ↔ <${C}>noefix-1-dev<//> on Render for staging. <${C}>localhost:8080<//> ↔ <${C}>:5001<//> on your laptop.</p><//>
+    </div>
+    <${Say}>Signup goes through Node because Node must also create the Mongo profile with the same id. Docs: 02 and 07.<//>
+  <//>`;
+}
+
+/* ---------- 3. Inside ---------- */
+function Inside() {
+  const stages = [
+    ["Filter", "JwtAuthentication\u200BFilter", "Bearer token → user id + ROLE_x. Checks the user still exists and is active."],
+    ["Rules", "SecurityConfig", "Public list, /api/admin/** = ADMIN or IT_ADMIN, everything else needs a token."],
+    ["Filter", "RateLimiting\u200BFilter", "Per IP: 10/min login, 5/min OTP, 100/min other."],
+    ["Web", "Controller", "@Valid request DTO, reads the caller's id from the security context."],
+    ["Logic", "Service", "@Transactional business rules; issues tokens; sends SMS/email."],
+    ["Data", "Repository → Entity", "Spring Data JPA on PostgreSQL (prod) or H2 (local)."],
+    ["Errors", "GlobalException\u200BHandler", "Exceptions → HTTP status + ErrorResponse JSON."],
+  ];
+  const pkgs = [
+    ["config/", "SecurityConfig, rate limiter, SMS/email wiring, local admin seeder"],
+    ["controller/", "9 REST controllers, 50 endpoints"],
+    ["dto/", "request/response classes with validation"],
+    ["service/", "one service per flow + notification/"],
+    ["security/", "JwtService, JwtAuthenticationFilter, OAuth2 handlers, TokenHasher"],
+    ["entity/", "14 JPA entities + the Role enum"],
+    ["repository/", "13 Spring Data interfaces"],
+    ["exception/", "custom exceptions + GlobalExceptionHandler"],
+  ];
+  return html`<${Slide}>
+    <${Eyebrow}>Inside the service<//>
+    <${H2}>Every request takes the same path.<//>
+    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 lg:gap-0">
+      ${stages.map(([b, h, p], i) => html`<div key=${i} class="min-w-0 border border-line bg-surface p-3 flex flex-col gap-1 rounded-lg lg:rounded-none lg:first:rounded-l-xl lg:last:rounded-r-xl lg:[&:not(:first-child)]:border-l-0">
+        <b class="font-mono text-[11px] font-semibold tracking-wide text-accent">${String(i + 1).padStart(2, "0")} · ${b}</b>
+        <h3 class="font-display font-bold text-[15px]">${h}</h3>
+        <p class="text-[13px] text-muted">${p}</p></div>`)}
+    </div>
+    <${H3}>Package map: <${C}>com.fixhomi.auth<//><//>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-2">
+      ${pkgs.map(([c, p]) => html`<div key=${c} class="min-w-0 rounded-lg border border-line bg-surface px-3 py-2.5">
+        <code class="font-mono text-sm font-semibold text-accent">${c}</code><p class="text-[13px] text-muted">${p}</p></div>`)}
+    </div>
+    <div class="grid gap-4 md:grid-cols-2">
+      <${Panel}><${H3}>Controllers by URL<//><p><${C}>/api/auth<//> Auth, OtpLogin, PhoneSignup, OAuth2, Verification, Session · <${C}>/api/token<//> Token · <${C}>/api/users<//> User (own account) · <${C}>/api/admin/users<//> AdminUser.</p><//>
+      <${Panel}><${H3}>Profiles<//><p><${Chip} tone="a">local<//> file H2, OTPs printed to the console, seeded admin · <${Chip}>test<//> for <${C}>./mvnw test<//> · <${Chip} tone="b">prod<//> Neon PostgreSQL, MSG91, Brevo on Render.</p><//>
+    </div>
+    <${Say}>Spring Security runs before the rate limiter, so a request without a valid token never consumes rate-limit budget. Docs: 02 and 04.<//>
+  <//>`;
+}
+
+/* ---------- 4. Tokens & RBAC ---------- */
+function Rbac() {
+  const rows = [
+    ["Public endpoints (register, logins, OTP, refresh…)", "y", "y", "y", "y", "y"],
+    ["Own account: /api/users/*, sessions, /api/token/*", "y", "y", "y", "y", "y"],
+    ["DELETE /api/users/{id} for another user", "n", "n", "n", "y", "n"],
+    ["/api/admin/users/** (create staff, list, disable, delete)", "n", "n", "n", "y", "y"],
+    ["Mobile Google / Apple sign-in", "y", "y", "n", "n", "n"],
+    ["Self-register via /api/auth/register", "y", "y", "n", "n", "n"],
+  ];
+  const token = `<span class="c">// header</span>
+{<span class="k">"alg"</span>: <span class="s">"HS512"</span>}
+<span class="c">// payload — readable by anyone, signed by jauth</span>
+{
+  <span class="k">"userId"</span>: 13,           <span class="c">// users.id = Mongo _id</span>
+  <span class="k">"role"</span>: <span class="s">"USER"</span>,         <span class="c">// becomes ROLE_USER</span>
+  <span class="k">"tokenType"</span>: <span class="s">"ACCESS"</span>,
+  <span class="k">"sub"</span>: <span class="s">"walk.through@example.com"</span>,
+  <span class="k">"iat"</span>: 1790944643, <span class="k">"exp"</span>: 1791031043,
+  <span class="k">"iss"</span>: <span class="s">"fixhomi-auth-service"</span>
+}`;
+  return html`<${Slide}>
+    <${Eyebrow}>Tokens & roles<//>
+    <${H2}>The role travels inside the signed token.<//>
+    <div class="grid gap-4 md:grid-cols-2">
+      <div class="min-w-0 flex flex-col gap-3">
+        <${H3}>Access token (HS512 JWT, 24 h)<//>
+        <${Code}>${token}<//>
+        <${Panel}><p><${B}>Refresh token:<//> opaque, 60 days, stored in <${C}>refresh_tokens<//>. Every refresh replaces it; replaying the old one within 45 s returns the same new one. Logout revokes the refresh token only; the access token lives until <${C}>exp<//>.</p><//>
+      </div>
+      <div class="min-w-0 flex flex-col gap-3">
+        <${H3}>How a role is enforced<//>
+        <${Panel}><${List} items=${[
+          html`<${C}>JwtAuthenticationFilter:87<//> builds the authority <${C}>"ROLE_" + role<//> from the <${B}>token<//>`,
+          html`<${C}>SecurityConfig:113<//> <${C}>/api/admin/**<//> → <${C}>hasAnyRole("ADMIN","IT_ADMIN")<//>`,
+          html`<${C}>AdminUserController<//>: <${C}>@PreAuthorize<//> on all 5 methods`,
+          html`<${C}>AuthService:137<//> register allows USER / SERVICE_PROVIDER only`,
+          html`<${C}>UserService:399<//> admin create allows ADMIN / IT_ADMIN / SUPPORT only`]} /><//>
+        <${Panel} cls="border-brass"><${H3}>SUPPORT today<//><p>Created only by an admin via <${C}>POST /api/admin/users<//>. Can log in with password or OTP and use its own account. Cannot reach <${C}>/api/admin/**<//>, is not shown in the admin user list, and is refused by Node's <${C}>requireAdmin<//>.</p><//>
+      </div>
+    </div>
+    <div class="overflow-x-auto rounded-xl border border-line bg-surface">
+      <table class="w-full border-collapse text-sm">
+        <thead><tr class="bg-surface2">${["Endpoint group", "USER", "PROVIDER", "SUPPORT", "ADMIN", "IT_ADMIN"].map((h, i) => html`<th key=${h} class=${"px-3 py-2 font-mono text-xs font-semibold uppercase tracking-wide text-muted whitespace-nowrap " + (i ? "text-center" : "text-left")}>${h}</th>`)}</tr></thead>
+        <tbody>${rows.map((r) => html`<tr key=${r[0]} class="border-t border-line">
+          <td class="px-3 py-2 whitespace-nowrap">${r[0]}</td>
+          ${r.slice(1).map((v, i) => html`<td key=${i} class=${"px-3 py-2 text-center font-mono font-semibold " + (v === "y" ? "text-ok" : "text-no")} aria-label=${v === "y" ? "allowed" : "denied"}>${v === "y" ? "✓" : "✕"}</td>`)}
+        </tr>`)}</tbody>
+      </table>
+    </div>
+    <${Say}>A denied or token-less request gets a 302 redirect to Google sign-in, not 401/403. And the role column only accepts the five roles it was created with. Docs: 04, 06 §3, 10.<//>
+  <//>`;
+}
+
+/* ---------- 5. End to end ---------- */
+const FLOW = [
+  { phase: "① Send OTP", path: "POST /api/auth/login/phone/send-otp", steps: [
+    { t: "Request arrives", where: "public · no token", body: "The app sends the phone number. There is no Authorization header, so JwtAuthenticationFilter sets nothing. The path is on the public list, and the rate limiter puts it in the OTP bucket (5 per minute per IP).",
+      code: `POST /api/auth/login/phone/send-otp\n{<span class="k">"phoneNumber"</span>: <span class="s">"+919812345678"</span>}` },
+    { t: "Controller validates", where: "OtpLoginController.java:78", body: "@Valid checks the phone pattern ^\\+?[1-9]\\d{6,14}$ before the method runs. A bad format returns 400 with validationErrors.phoneNumber.",
+      code: `<span class="k">@PostMapping</span>(<span class="s">"/phone/send-otp"</span>)\n<span class="k">public</span> ResponseEntity&lt;?&gt; sendPhoneLoginOtp(\n    <span class="k">@Valid @RequestBody</span> PhoneOtpLoginRequest request)` },
+    { t: "Service applies the rules", where: "OtpLoginService.java:98–145", body: "Normalises to 9812345678. Allows at most 3 sends per phone per 5 minutes (else 429). The account must exist (else 404 USER_NOT_FOUND) and be active. Older unused codes are cancelled.",
+      code: `phoneNumber = User.normalizePhoneNumber(phoneNumber);\n<span class="k">if</span> (recent >= 3) <span class="k">throw new</span> TooManyRequestsException(...);\n<span class="k">if</span> (user == <span class="k">null</span>) <span class="k">throw new</span> AuthenticationException(...);\nphoneOtpRepository.invalidateAllUserOtps(user.getId(), storedPhone);` },
+    { t: "Code stored, SMS sent", where: "phone_otps · SmsService", body: "6 digits from SecureRandom, saved with a 5-minute expiry. SmsService is MSG91 in production; locally StubSmsService prints the code to the console.",
+      code: `ID | USER_ID | PHONE_NUMBER | OTP    | VERIFIED | ATTEMPTS\n7  | 13      | 9812345678   | 652707 | FALSE    | 0\n\n<span class="c">StubSmsService :  OTP CODE: 652707</span>` },
+    { t: "Response", where: "200 OK", body: "The phone is masked in the response.",
+      code: `{<span class="k">"success"</span>:true,<span class="k">"maskedPhone"</span>:<span class="s">"****5678"</span>,\n <span class="k">"expiresInMinutes"</span>:5,\n <span class="k">"message"</span>:<span class="s">"OTP sent successfully to ****5678"</span>}` },
+  ]},
+  { phase: "② Verify", path: "POST /api/auth/login/phone/verify", steps: [
+    { t: "Check the code", where: "OtpLoginService.java:151", body: "Takes the newest unused code, counts the attempt (3 allowed), compares in constant time. noRollbackFor keeps the attempt count even when a wrong code throws.",
+      code: `<span class="k">@Transactional</span>(noRollbackFor = VerificationException.<span class="k">class</span>)\notpEntry.incrementAttempts();\n<span class="k">if</span> (!MessageDigest.isEqual(stored, given))\n    <span class="k">throw new</span> VerificationException(<span class="s">"Invalid OTP..."</span>);` },
+    { t: "Issue tokens", where: "JwtService.java:43 · RefreshTokenService", body: "Marks the code used and the phone verified, updates last_login_at, signs a 24-hour JWT and stores a 60-day refresh token.",
+      code: `jwtService.generateAccessToken(user.getId(), user.getEmail(), user.getRole());\nrefreshTokenService.createRefreshToken(user);  <span class="c">// row in refresh_tokens</span>` },
+    { t: "LoginResponse", where: "200 OK", body: "The app stores both tokens in the Keychain and sends the access token on every call.",
+      code: `{<span class="k">"accessToken"</span>:<span class="s">"eyJhbGciOiJIUzUxMiJ9..."</span>,\n <span class="k">"refreshToken"</span>:<span class="s">"111e9ca9-...882f"</span>,\n <span class="k">"userId"</span>:13, <span class="k">"role"</span>:<span class="s">"USER"</span>, <span class="k">"expiresIn"</span>:86400,\n <span class="k">"isPhoneVerified"</span>:true, ...}` },
+  ]},
+  { phase: "③ Use the token", path: "GET /api/token/validate", steps: [
+    { t: "Filter authenticates", where: "JwtAuthenticationFilter.java:45–107", body: "Verifies the HS512 signature and expiry, loads user 13 and checks it is still active (else 401 ACCOUNT_DELETED), then sets principal \"13\" with authority ROLE_USER.",
+      code: `<span class="k">new</span> UsernamePasswordAuthenticationToken(\n    String.valueOf(user.getId()), <span class="k">null</span>,\n    List.of(<span class="k">new</span> SimpleGrantedAuthority(<span class="s">"ROLE_"</span> + role)));` },
+    { t: "Controller answers", where: "TokenController.java:34 → TokenValidationService", body: "Reads the claims back out of the token. A missing or bad token never gets this far: Spring answers with a 302.",
+      code: `{<span class="k">"valid"</span>:true,<span class="k">"userId"</span>:13,<span class="k">"email"</span>:<span class="s">"walk.through@example.com"</span>,\n <span class="k">"role"</span>:<span class="s">"USER"</span>,<span class="k">"tokenType"</span>:<span class="s">"ACCESS"</span>,\n <span class="k">"issuedAt"</span>:1790944643,<span class="k">"expiresAt"</span>:1791031043}` },
+    { t: "How Node does the same", where: "noefi · authMiddleware.js:145", body: "Node never calls this endpoint. It verifies the same token itself with the shared secret, then uses userId as the Mongo _id.",
+      code: `<span class="k">const</span> decoded = jwt.verify(token, process.env.JWT_SECRET,\n                           { algorithms: [<span class="s">'HS512'</span>] });` },
+  ]},
+];
+function EndToEndAll() {
+  let n = 0;
+  return html`<${Slide}>
+    <${Eyebrow}>One request, end to end<//>
+    <${H2}>Phone OTP login, traced through every layer.<//>
+    <${Lede}>Captured from a local run of the service. Full version with every outcome: docs/onboarding/08.<//>
+    ${FLOW.map((f, fi) => html`<div key=${fi} class="flex flex-col gap-3">
+      <div class="flex flex-wrap items-center gap-2 pt-2"><${Chip} tone="a">${f.phase}<//><code class="font-mono text-sm text-muted">${f.path}</code></div>
+      ${f.steps.map((st, si) => { n++; return html`<div key=${si} class="avoid-break grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] rounded-xl border border-line bg-surface p-4">
+        <div class="min-w-0 flex flex-col gap-1">
+          <div class="font-mono text-xs font-semibold text-accent">${String(n).padStart(2, "0")} · ${st.where}</div>
+          <${H3}>${st.t}<//><p class="text-sm text-muted">${st.body}</p></div>
+        <${Code}>${st.code}<//></div>`; })}
+    </div>`)}
+  <//>`;
+}
+
+function EndToEnd() {
+  const [sel, setSel] = useState([0, 0]);
+  const phase = FLOW[sel[0]], s = phase.steps[sel[1]];
+  let n = 0;
+  return html`<${Slide}>
+    <${Eyebrow}>One request, end to end<//>
+    <${H2}>Phone OTP login, traced through every layer.<//>
+    <${Lede}>Captured from a local run. Pick a step to see the code and the data it touches.<//>
+    <div class="grid gap-4 md:grid-cols-[minmax(0,290px)_minmax(0,1fr)]">
+      <div class="flex flex-col">
+        ${FLOW.map((f, fi) => html`<div key=${fi}>
+          <div class="font-mono text-xs font-semibold uppercase tracking-wider text-muted pt-3 pb-1">${f.phase}</div>
+          <div class="flex flex-col gap-1">${f.steps.map((st, si) => {
+            n++; const on = sel[0] === fi && sel[1] === si;
+            return html`<button key=${si} aria-pressed=${on ? "true" : "false"} onClick=${() => setSel([fi, si])}
+              class=${"text-left flex items-baseline gap-2.5 rounded-lg border px-2.5 py-2 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent " + (on ? "border-accent bg-surface" : "border-transparent hover:bg-surface")}>
+              <span class=${"font-mono text-xs font-semibold min-w-[22px] " + (on ? "text-accent" : "text-muted")}>${String(n).padStart(2, "0")}</span>${st.t}</button>`;
+          })}</div></div>`)}
+      </div>
+      <div class="min-w-0 flex flex-col gap-3">
+        <div class="flex flex-wrap items-center gap-2"><${Chip} tone="a">${phase.phase}<//><code class="font-mono text-sm text-muted">${phase.path}</code></div>
+        <${H3}>${s.t}<//>
+        <div class="font-mono text-[13px] font-medium text-accent">${s.where}</div>
+        <p class="text-base text-muted max-w-[68ch]">${s.body}</p>
+        <${Code}>${s.code}<//>
+      </div>
+    </div>
+    <${Say}>Every other endpoint uses the same layers. Full version with all outcomes: doc 08.<//>
+  <//>`;
+}
+
+/* ---------- 6. Run it ---------- */
+function RunIt() {
+  const folders = ["00 Health", "01 Register & login", "02 Who am I", "03 Verify phone/email", "04 OTP login", "05 Phone signup", "06 My account", "07 Reset password", "08 Sessions", "09 Admin", "10 RBAC in action", "11 Delete", "12 Social", "13 Logout"];
+  const cmds = `<span class="c"># JDK 17 · Maven comes with ./mvnw</span>
+cp .env.local.example .env
+openssl rand -base64 64 | tr -d '\\n'   <span class="c"># → JWT_SECRET in .env</span>
+./run.sh local
+
+curl localhost:8080/api/auth/health
+<span class="c"># {"status":"UP","message":"Auth service is running"}</span>
+
+./mvnw test                         <span class="c"># BUILD SUCCESS</span>`;
+  return html`<${Slide}>
+    <${Eyebrow}>Run it locally<//>
+    <${H2}>Three commands, no production credentials.<//>
+    <div class="grid gap-4 md:grid-cols-2">
+      <div class="min-w-0 flex flex-col gap-3">
+        <${Code}>${cmds}<//>
+        <${Panel}><${H3}>The local profile gives you<//><${List} items=${[
+          html`H2 database in <${C}>./.localdb<//>; delete the folder to reset`,
+          html`OTPs and email links <${B}>printed to the console<//>`,
+          html`Admin account <${C}>admin@fixhomi.local<//> / <${C}>LocalAdmin@123<//>`,
+          "DB browsing from the IntelliJ Database tool while the app runs"]} /><//>
+      </div>
+      <div class="min-w-0 flex flex-col gap-3">
+        <${Panel}><${H3}>Postman: 14 folders, 72 requests, every endpoint<//>
+          <p>Import both files from <${C}>postman/<//> and run the folders in order. Scripts save tokens and ids; paste each console <${C}>OTP CODE<//> into the <${C}>OTP<//> variable.</p>
+          <div class="flex flex-wrap gap-1.5">${folders.map((f) => html`<${Chip} key=${f} tone=${f.startsWith("09") || f.startsWith("10") ? "a" : ""}>${f}<//>`)}</div>
+        <//>
+        <${Panel}><${H3}>Things that will surprise you<//><${List} items=${[
+          html`No/expired token or wrong role → <${B}>302<//> to Google, not 401/403`,
+          html`A stale token on a public endpoint gives 401 <${C}>ACCOUNT_DELETED<//>; send public calls with no auth`,
+          "Role changes apply only after a refresh or new login",
+          "Logout does not kill the access token (24 h)",
+          html`Rate limits hit quickly; set <${C}>RATE_LIMIT_ENABLED=false<//> for the runner`]} /><//>
+      </div>
+    </div>
+    <${Say}>Run folders 09 and 10 live: create a SUPPORT user as admin, log in as SUPPORT, and watch the admin call get refused. Docs: 01 and 10.<//>
+  <//>`;
+}
+
+/* ---------- 7. Reading list ---------- */
+function Reading() {
+  const docs = [
+    ["01", "Local setup", "Run it, seeded admin, Postman, IntelliJ, troubleshooting", "15 min", "Day 1"],
+    ["02", "Architecture & folder structure", "Where jauth fits, packages, layering, profiles", "20 min", "Day 2"],
+    ["08", "Walkthrough: send OTP → validate token", "One request through every layer, real output", "30 min", "Day 2"],
+    ["04", "Security, JWT & RBAC", "Filter chain, token anatomy, every role check, SUPPORT today", "30 min", "Day 3 · key"],
+    ["06", "Data model", "14 tables; how the role column is defined", "15 min", "Day 3"],
+    ["07", "How other services use jauth", "App, Node, admin panel, website; the shared-secret contract", "20 min", "Day 4"],
+    ["05", "Authentication flows", "Register, logins, signup, Google/Apple, reset, delete, admin", "30 min", "Day 5"],
+    ["10", "Behaviours & gotchas", "Current behaviour that surprises people", "15 min", "Day 5"],
+    ["11", "Working on this repo", "Rules, branching, where code goes, testing; plus AGENTS.md", "15 min", "Day 5"],
+    ["03 · 09", "API reference · Configuration", "Look things up as you need them", "reference", "anytime"],
+  ];
+  const week = [
+    ["Day 1", "Run it", "Doc 01 end to end, then every Postman folder while watching the console."],
+    ["Day 2", "Understand it", "Docs 02 and 08; reproduce 08 with IntelliJ breakpoints."],
+    ["Day 3", "Roles", "Doc 04 and 06 §3; Postman folders 09–10; find the line behind each decision."],
+    ["Day 4", "Wider system", "Doc 07; read Node's adminAuthMiddleware.js and the app's apiClient.js."],
+    ["Day 5", "The rest", "Docs 05, 10, 11 and AGENTS.md; bring questions."],
+  ];
+  return html`<${Slide}>
+    <${Eyebrow}>Your reading list · docs/onboarding/<//>
+    <${H2}>What to read, in this order.<//>
+    <div class="rounded-xl border border-line bg-surface divide-y divide-line">
+      ${docs.map(([n, t, w, time, day]) => html`<div key=${n} class="grid grid-cols-[52px_minmax(0,1fr)] sm:grid-cols-[52px_minmax(0,1fr)_88px_110px] gap-x-3 gap-y-1 items-baseline px-4 py-2.5">
+        <span class="font-mono text-[13px] font-semibold text-accent">${n}</span>
+        <span class="font-semibold">${t}<span class="block text-sm font-normal text-muted">${w}</span></span>
+        <span class="col-start-2 sm:col-start-auto font-mono text-[13px] text-muted tabular-nums">${time}</span>
+        <span class="col-start-2 sm:col-start-auto"><${Chip} tone=${day.includes("key") ? "b" : ""}>${day}<//></span>
+      </div>`)}
+    </div>
+    <div class="grid grid-cols-2 lg:grid-cols-5 gap-2">
+      ${week.map(([d, h, p]) => html`<div key=${d} class="min-w-0 rounded-lg border border-line bg-surface px-3 py-2.5 flex flex-col gap-1">
+        <b class="font-mono text-xs font-semibold text-brass">${d}</b><${H3}>${h}<//><p class="text-[13.5px] text-muted">${p}</p></div>`)}
+    </div>
+    <div class="grid gap-4 md:grid-cols-2">
+      <${Panel}><${H3}>Ground rules (AGENTS.md)<//><p>This is a live production service. Check the current code, map who else is affected (Node, the app, the admin panel), flag risky changes before making them, prefer small additive steps, and verify before saying done.</p><//>
+      <${Panel}><${H3}>Where to start<//><p>Branch <${C}>docs/onboarding-tejswita<//> → <${C}>docs/onboarding/README.md<//>. If a doc and the code disagree, the code wins. Tell Shreyash so the doc gets fixed.</p><//>
+    </div>
+  <//>`;
+}
+
+/* ---------- deck shell ---------- */
+const SLIDES = [
+  ["What jauth is", Welcome], ["Architecture", Architecture], ["Inside the service", Inside],
+  ["Tokens & roles", Rbac], ["One request, end to end", EndToEnd], ["Run it locally", RunIt], ["Reading list", Reading],
+];
+function readHash() { const m = /^#s([1-7])$/.exec(location.hash || ""); return m ? Number(m[1]) - 1 : 0; }
+
+const PRINT = location.hash === "#print";
+
+function PrintDeck() {
+  useEffect(() => { document.documentElement.setAttribute("data-theme", "light"); document.title = "jauth KT Session"; }, []);
+  return html`<main class="px-2 py-2">
+    ${SLIDES.map(([t, Comp], n) => html`<div key=${t} class="print-page pb-6">
+      <div class="max-w-[1120px] mx-auto flex items-center justify-between border-b border-line pb-2 mb-5 font-mono text-xs text-muted">
+        <span><b class="text-accent">jauth</b> · FixHomi auth service · KT for Tejswita</span><span>${n + 1} / ${SLIDES.length} · ${t}</span>
+      </div>
+      ${Comp === EndToEnd ? html`<${EndToEndAll} />` : html`<${Comp} go=${() => {}} />`}
+    </div>`)}
+  </main>`;
+}
+
+function Deck() {
+  const [i, setI] = useState(readHash);
+  const last = SLIDES.length - 1;
+  const go = useCallback((n) => setI(Math.max(0, Math.min(last, n))), []);
+  useEffect(() => { try { history.replaceState(null, "", "#s" + (i + 1)); } catch (e) {} window.scrollTo(0, 0); }, [i]);
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "ArrowRight" || e.key === "PageDown") { e.preventDefault(); setI((x) => Math.min(last, x + 1)); }
+      if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); setI((x) => Math.max(0, x - 1)); }
+      if (e.key === "Home") setI(0);
+      if (e.key === "End") setI(last);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  const [title, Comp] = SLIDES[i];
+  return html`
+    <header class="no-print sticky top-[env(safe-area-inset-top,0px)] z-10 bg-bg border-b border-line px-5 py-2.5 flex items-center gap-4">
+      <div class="flex items-center gap-2.5 whitespace-nowrap font-display font-extrabold text-[17px]">
+        <span class="w-[22px] h-[22px] rounded-md bg-accent text-surface grid place-items-center font-mono text-[11px]">jA</span>
+        jauth <small class="font-body font-medium text-[13px] text-muted max-sm:hidden">FixHomi auth service · KT</small>
+      </div>
+      <nav aria-label="Slides" class="ml-auto flex gap-1 overflow-x-auto no-scrollbar">
+        ${SLIDES.map(([t], n) => html`<button key=${t} aria-current=${n === i ? "true" : "false"} onClick=${() => go(n)}
+          class=${"whitespace-nowrap rounded-md px-2.5 py-1.5 text-[13px] font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent " + (n === i ? "bg-accentsoft text-accent" : "text-muted hover:text-ink")}>${n + 1}. ${t}</button>`)}
+      </nav>
+      <a href="jauth-kt-deck.pdf" target="_blank" rel="noopener"
+        class="no-print shrink-0 rounded-lg border border-accent px-3 py-1.5 text-[13px] font-semibold text-accent hover:bg-accentsoft focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">Download PDF</a>
+    </header>
+    <div class="no-print h-[3px] bg-line"><span class="block h-full bg-accent transition-[width] duration-300 motion-reduce:transition-none" style=${{ width: ((i + 1) / SLIDES.length) * 100 + "%" }}></span></div>
+    <main class="flex-1 px-5 pt-7 pb-6"><${Comp} key=${i} go=${go} /></main>
+    <footer class="no-print sticky bottom-0 bg-bg border-t border-line px-5 pt-2.5 pb-[calc(10px+env(safe-area-inset-bottom,0px))] flex items-center gap-3">
+      <div class="min-w-0 truncate text-sm text-muted"><b class="text-ink tabular-nums mr-2">${i + 1} / ${SLIDES.length}</b>${title}</div>
+      <div class="flex-1"></div>
+      <span class="font-mono text-xs text-muted max-sm:hidden">← → to navigate</span>
+      <button disabled=${i === 0} onClick=${() => go(i - 1)}
+        class="rounded-lg border border-line bg-surface px-4 py-2 text-sm font-semibold disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">Previous</button>
+      <button disabled=${i === last} onClick=${() => go(i + 1)}
+        class="rounded-lg border border-accent bg-accent text-surface px-4 py-2 text-sm font-semibold whitespace-nowrap disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">${i === last ? "End" : "Next: " + SLIDES[i + 1][0]}</button>
+    </footer>`;
+}
+ReactDOM.createRoot(document.getElementById("app")).render(PRINT ? html`<${PrintDeck} />` : html`<${Deck} />`);
+</script>
+
+</body>
+</html>

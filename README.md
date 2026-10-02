@@ -35,7 +35,7 @@ Run the tests with `./mvnw test`.
 
 ## Documentation
 
-Start with **[docs/onboarding/](docs/onboarding/README.md)**:
+Start with **[docs/onboarding/](docs/onboarding/README.md)**. New to the project? Read the 7-slide overview first: [docs/onboarding/kt-deck/jauth-kt-deck.pdf](docs/onboarding/kt-deck/jauth-kt-deck.pdf).
 
 | | |
 |---|---|

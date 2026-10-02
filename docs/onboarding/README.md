@@ -8,6 +8,12 @@ Everything in these pages was checked against the code on `main` and against a r
 
 ---
 
+## Start here: the KT deck
+
+**[kt-deck/jauth-kt-deck.pdf](kt-deck/jauth-kt-deck.pdf)** is a 7-slide overview: what jauth is, the architecture, the request pipeline, tokens and roles, one request traced end to end, local setup, and this reading list. Read it first (≈ 20 minutes), then follow the reading order below.
+
+The same deck is interactive in [kt-deck/jauth-kt-deck.html](kt-deck/jauth-kt-deck.html): open it in a browser and use ← → or the Next button. It loads React and Tailwind from public CDNs, so it needs an internet connection.
+
 ## Reading order
 
 | # | Document | What you'll learn | Time |
