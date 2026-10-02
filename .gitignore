@@ -37,3 +37,5 @@ build/
 .env.local
 .env.production
 *.env
+### Local dev H2 database (see .env.local.example) ###
+.localdb/

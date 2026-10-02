@@ -1,0 +1,74 @@
+# ============================================================
+# LOCAL DEVELOPMENT PROFILE — laptop only, never used on Render
+# ============================================================
+# Start with:  ./run.sh local
+# Layered on top of application.yaml (only the keys below change).
+# Production runs with SPRING_PROFILES_ACTIVE=prod, so nothing here
+# (including LocalDevDataSeeder) is active in production.
+#
+# Onboarding guide: docs/onboarding/01-local-setup.md
+# ============================================================
+
+spring:
+  # File-based H2 so local users/tokens survive a restart.
+  # AUTO_SERVER=TRUE lets a second process (IntelliJ Database tool, DBeaver)
+  # open the same file while the app is running — the /h2-console web UI is
+  # not reachable because SecurityConfig does not permit it.
+  # Delete the ./.localdb folder (git-ignored) to reset to an empty DB.
+  datasource:
+    url: jdbc:h2:file:./.localdb/fixhomi_auth;AUTO_SERVER=TRUE
+
+  jpa:
+    show-sql: false
+
+  # The browser Google OAuth2 client (/oauth2/authorize/google) is registered
+  # unconditionally in application.yaml and Spring refuses to start if its
+  # client-id is empty. Locally that flow is not used (the mobile app uses
+  # POST /api/auth/oauth2/google/mobile), so a named non-functional value is
+  # set here. Export real GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET to use it.
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:local-google-oauth-not-configured}
+            client-secret: ${GOOGLE_CLIENT_SECRET:local-google-oauth-not-configured}
+
+fixhomi:
+  # OTPs, email-verification links and reset links are printed to the console
+  # by StubSmsService / StubEmailService instead of being sent.
+  notification:
+    email:
+      provider: stub
+    sms:
+      provider: stub
+
+  # The email-verification link printed in the console then points at this
+  # service (GET /api/auth/email/verify?token=...), so you can open it locally.
+  # Password-reset links are left at their default: copy the TOKEN from the
+  # console and POST it to /api/auth/reset-password.
+  verification:
+    email:
+      base-url: http://localhost:8080
+
+  api:
+    base-url: http://localhost:8080
+
+  # Creates one ADMIN account at startup if it does not exist yet
+  # (see config/LocalDevDataSeeder.java). Public /register cannot create
+  # ADMIN / IT_ADMIN / SUPPORT, so this is the entry point for testing
+  # the /api/admin/** endpoints locally.
+  local:
+    seed-admin:
+      enabled: true
+      email: ${LOCAL_ADMIN_EMAIL:admin@fixhomi.local}
+      password: ${LOCAL_ADMIN_PASSWORD:LocalAdmin@123}
+      full-name: Local Admin
+
+logging:
+  level:
+    '[com.fixhomi.auth]': DEBUG
+    # Set back to DEBUG to trace every filter / authorization decision.
+    '[org.springframework.security]': INFO
+    '[org.hibernate.SQL]': INFO
+    '[org.hibernate.type.descriptor.sql.BasicBinder]': INFO

@@ -1,0 +1,38 @@
+# ============================================================
+# TEST PROFILE — used only by tests annotated @ActiveProfiles("test")
+# Lives in src/test/resources, so it is never packaged into the jar.
+# ============================================================
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:fixhomi_auth_test;DB_CLOSE_DELAY=-1
+  jpa:
+    show-sql: false
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: test-google-client-id
+            client-secret: test-google-client-secret
+
+# Test-only signing key (not a real secret). JwtService signs with HS512,
+# which needs a key of at least 64 bytes.
+jwt:
+  secret: test-only-jwt-secret-for-unit-tests-0123456789-abcdefghijklmnopqrstuvwxyz-ABCDEFGHIJKLMNOP
+
+fixhomi:
+  notification:
+    email:
+      provider: stub
+    sms:
+      provider: stub
+  rate-limit:
+    enabled: false
+
+logging:
+  level:
+    '[com.fixhomi.auth]': INFO
+    '[org.springframework.security]': WARN
+    '[org.hibernate.SQL]': WARN
+    '[org.hibernate.type.descriptor.sql.BasicBinder]': WARN
