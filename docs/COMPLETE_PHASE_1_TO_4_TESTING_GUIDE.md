@@ -1,3 +1,5 @@
+> **Historical (January 2026).** Kept for design/testing history. For the current behaviour of the service see [onboarding/](onboarding/README.md).
+
 # Complete Testing Guide: Phases 1-4
 
 ## 📋 Overview

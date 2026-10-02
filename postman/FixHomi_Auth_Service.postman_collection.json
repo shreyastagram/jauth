@@ -1,540 +1,168 @@
 {
   "info": {
-    "_postman_id": "fixhomi-auth-service-collection-v1.1",
-    "name": "FixHomi Java Auth Service",
-    "description": "Complete API collection for FixHomi Java Auth Service v1.1.0.\n\n**New in v1.1.0:** Passwordless OTP Login (Phone & Email)\n\nImport this collection and the environment file to test all endpoints.",
+    "_postman_id": "fixhomi-auth-service-collection-v2",
+    "name": "FixHomi Auth Service (jauth)",
+    "description": "# FixHomi Auth Service (jauth) — local collection\n\nEvery endpoint of the Java auth service, ordered as a walkthrough. Built against the code on `main`\nand verified end-to-end against a local instance.\n\n## Setup\n1. Start the service: `cp .env.local.example .env`, set `JWT_SECRET`, `./run.sh local`\n   (full guide: `docs/onboarding/01-local-setup.md`).\n2. Import this collection and `FixHomi_Auth_Local.postman_environment.json`; select **FixHomi Auth – Local**.\n3. Run the folders **in order**. Test scripts save tokens/ids into the environment.\n\n## OTPs and emailed tokens\nIn the `local` profile nothing is sent. The service console prints:\n- `OTP CODE: 123456` → paste into the `OTP` variable before a *verify* request\n- `TOKEN: ...` under `EMAIL TYPE: Email Verification` → `EMAIL_VERIFY_TOKEN`\n- `TOKEN: ...` under `EMAIL TYPE: Password Reset` → `RESET_TOKEN`\n\n## Auth\nCollection-level auth is `Bearer {{ACCESS_TOKEN}}` (the USER from folder 01). Public endpoints are set to *No Auth*\non purpose: the JWT filter also runs on public paths and rejects a token that belongs to a deleted account.\nAdmin requests use `{{ADMIN_ACCESS_TOKEN}}`, SUPPORT requests `{{SUPPORT_ACCESS_TOKEN}}`.\n\n## Rate limits\nPer IP: 10/min on login-type paths, 5/min on OTP-sending paths, 100/min otherwise.\nFor the Collection Runner set `RATE_LIMIT_ENABLED=false` in `.env` and restart.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{ACCESS_TOKEN}}",
+        "type": "string"
+      }
+    ]
   },
   "item": [
     {
-      "name": "Auth",
+      "name": "00 · Health",
+      "description": "Public liveness endpoints. Start here to confirm the service is up.",
       "item": [
         {
-          "name": "Login",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.environment.set('ACCESS_TOKEN', jsonData.accessToken);",
-                  "    pm.environment.set('REFRESH_TOKEN', jsonData.refreshToken);",
-                  "    pm.environment.set('USER_ID', jsonData.userId);",
-                  "    console.log('✅ Tokens saved successfully');",
-                  "    console.log('User ID:', jsonData.userId);",
-                  "    console.log('Role:', jsonData.role);",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"password123\"\n}"
-            },
-            "url": {
-              "raw": "{{BASE_URL}}/api/auth/login",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "auth", "login"]
-            },
-            "description": "Login with email and password.\n\n**Response:**\n- accessToken (JWT, 24h validity)\n- refreshToken (UUID, 7 days validity)\n- userId, email, fullName, role\n- expiresIn (seconds)"
-          },
-          "response": [
-            {
-              "name": "Success",
-              "originalRequest": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"password123\"\n}"
-                },
-                "url": {
-                  "raw": "{{BASE_URL}}/api/auth/login",
-                  "host": ["{{BASE_URL}}"],
-                  "path": ["api", "auth", "login"]
-                }
-              },
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzUxMiJ9...\",\n  \"refreshToken\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"userId\": 1,\n  \"email\": \"user@example.com\",\n  \"fullName\": \"John Doe\",\n  \"role\": \"USER\",\n  \"expiresIn\": 86400\n}"
-            }
-          ]
-        },
-        {
-          "name": "Login with Phone",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.environment.set('ACCESS_TOKEN', jsonData.accessToken);",
-                  "    pm.environment.set('REFRESH_TOKEN', jsonData.refreshToken);",
-                  "    pm.environment.set('USER_ID', jsonData.userId);",
-                  "    console.log('✅ Tokens saved successfully (Phone Login)');",
-                  "    console.log('User ID:', jsonData.userId);",
-                  "    console.log('Role:', jsonData.role);",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"phoneNumber\": \"+1234567890\",\n  \"password\": \"password123\"\n}"
-            },
-            "url": {
-              "raw": "{{BASE_URL}}/api/auth/login/phone",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "auth", "login", "phone"]
-            },
-            "description": "🆕 Login with phone number and password (alternative to email login).\n\n**Request:**\n- phoneNumber: E.164 format (+1234567890)\n- password: User's password\n\n**Response:** Same as email login\n- accessToken (JWT, 24h validity)\n- refreshToken (UUID, 7 days validity)\n- userId, email, fullName, role\n- expiresIn (seconds)"
-          },
-          "response": [
-            {
-              "name": "Success",
-              "originalRequest": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"phoneNumber\": \"+1234567890\",\n  \"password\": \"password123\"\n}"
-                },
-                "url": {
-                  "raw": "{{BASE_URL}}/api/auth/login/phone",
-                  "host": ["{{BASE_URL}}"],
-                  "path": ["api", "auth", "login", "phone"]
-                }
-              },
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzUxMiJ9...\",\n  \"refreshToken\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"userId\": 1,\n  \"email\": \"user@example.com\",\n  \"fullName\": \"John Doe\",\n  \"role\": \"USER\",\n  \"expiresIn\": 86400\n}"
-            }
-          ]
-        },
-        {
-          "name": "Register (USER)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 201) {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.environment.set('ACCESS_TOKEN', jsonData.accessToken);",
-                  "    pm.environment.set('REFRESH_TOKEN', jsonData.refreshToken);",
-                  "    pm.environment.set('USER_ID', jsonData.userId);",
-                  "    console.log('✅ User registered and tokens saved');",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"password\": \"SecurePass123\",\n  \"fullName\": \"New User\",\n  \"phoneNumber\": \"+1234567890\",\n  \"role\": \"USER\"\n}"
-            },
-            "url": {
-              "raw": "{{BASE_URL}}/api/auth/register",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "auth", "register"]
-            },
-            "description": "Register a new USER.\n\n**Allowed roles:** USER, SERVICE_PROVIDER\n**Blocked roles:** ADMIN, IT_ADMIN, SUPPORT (returns 403)"
-          },
-          "response": [
-            {
-              "name": "Success",
-              "status": "Created",
-              "code": 201,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzUxMiJ9...\",\n  \"refreshToken\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"userId\": 2,\n  \"email\": \"newuser@example.com\",\n  \"fullName\": \"New User\",\n  \"role\": \"USER\",\n  \"expiresIn\": 86400\n}"
-            }
-          ]
-        },
-        {
-          "name": "Register (SERVICE_PROVIDER)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 201) {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.environment.set('ACCESS_TOKEN', jsonData.accessToken);",
-                  "    pm.environment.set('REFRESH_TOKEN', jsonData.refreshToken);",
-                  "    pm.environment.set('USER_ID', jsonData.userId);",
-                  "    console.log('✅ Service Provider registered and tokens saved');",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"provider@example.com\",\n  \"password\": \"SecurePass123\",\n  \"fullName\": \"Service Provider Name\",\n  \"phoneNumber\": \"+1234567890\",\n  \"role\": \"SERVICE_PROVIDER\"\n}"
-            },
-            "url": {
-              "raw": "{{BASE_URL}}/api/auth/register",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "auth", "register"]
-            },
-            "description": "Register a new SERVICE_PROVIDER (plumber, electrician, etc.)"
-          },
-          "response": []
-        },
-        {
-          "name": "Refresh Token",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.environment.set('ACCESS_TOKEN', jsonData.accessToken);",
-                  "    pm.environment.set('REFRESH_TOKEN', jsonData.refreshToken);",
-                  "    console.log('✅ Tokens rotated successfully');",
-                  "    console.log('⚠️ Old refresh token is now invalid');",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"refreshToken\": \"{{REFRESH_TOKEN}}\"\n}"
-            },
-            "url": {
-              "raw": "{{BASE_URL}}/api/auth/refresh",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "auth", "refresh"]
-            },
-            "description": "Get new access token using refresh token.\n\n**Important:** Refresh tokens are rotated - old token becomes invalid after use."
-          },
-          "response": []
-        },
-        {
-          "name": "Logout",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "    pm.environment.unset('ACCESS_TOKEN');",
-                  "    pm.environment.unset('REFRESH_TOKEN');",
-                  "    pm.environment.unset('USER_ID');",
-                  "    console.log('✅ Logged out - tokens cleared from environment');",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"refreshToken\": \"{{REFRESH_TOKEN}}\"\n}"
-            },
-            "url": {
-              "raw": "{{BASE_URL}}/api/auth/logout",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "auth", "logout"]
-            },
-            "description": "Logout and revoke refresh token."
-          },
-          "response": []
-        },
-        {
-          "name": "Health Check",
+          "name": "Service health",
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{BASE_URL}}/api/auth/health",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "auth", "health"]
-            },
-            "description": "Check if auth service is running. No authentication required."
-          },
-          "response": [
-            {
-              "name": "Success",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"status\": \"UP\",\n  \"message\": \"Auth service is running\"\n}"
+            "url": "{{BASE_URL}}/api/auth/health",
+            "description": "Public. `AuthController.health()` → `{status, message}`. Not rate-limited (GET).",
+            "auth": {
+              "type": "noauth"
             }
-          ]
-        }
-      ],
-      "description": "Core authentication endpoints - login, register, refresh, logout"
-    },
-    {
-      "name": "OAuth",
-      "item": [
-        {
-          "name": "Google OAuth - Start (Open in Browser)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{BASE_URL}}/oauth2/authorize/google",
-              "host": ["{{BASE_URL}}"],
-              "path": ["oauth2", "authorize", "google"]
-            },
-            "description": "**⚠️ Open this URL in a browser, not Postman.**\n\nInitiates Google OAuth2 flow. After Google authentication, redirects back with tokens.\n\nNew users created with:\n- role: USER\n- isEmailVerified: true\n- isPhoneVerified: false"
           },
-          "response": []
-        }
-      ],
-      "description": "Google OAuth2 authentication flow"
-    },
-    {
-      "name": "OTP Login (Passwordless) 🆕",
-      "item": [
-        {
-          "name": "📱 Phone OTP - Send OTP",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"phoneNumber\": \"+1234567890\"\n}"
-            },
-            "url": {
-              "raw": "{{BASE_URL}}/api/auth/login/phone/send-otp",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "auth", "login", "phone", "send-otp"]
-            },
-            "description": "Send OTP to phone number for passwordless login.\n\n**No authentication required.**\n**OTP validity:** 5 minutes\n**Rate limit:** 3 requests per minute\n\n**Note:** In development, check console logs for the OTP code (StubSmsService).\n\n**Response includes:**\n- maskedPhone: e.g., '+123***7890'\n- expiresInMinutes: 5"
-          },
-          "response": [
-            {
-              "name": "Success",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"success\": true,\n  \"message\": \"OTP sent successfully to +123***7890\",\n  \"maskedPhone\": \"+123***7890\",\n  \"expiresInMinutes\": 5\n}"
-            },
-            {
-              "name": "User Not Found",
-              "status": "Not Found",
-              "code": 404,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"success\": false,\n  \"message\": \"No account found with this phone number\"\n}"
-            },
-            {
-              "name": "Rate Limited",
-              "status": "Too Many Requests",
-              "code": 429,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"success\": false,\n  \"message\": \"Too many OTP requests. Please wait before trying again.\"\n}"
-            }
-          ]
-        },
-        {
-          "name": "📱 Phone OTP - Verify & Login",
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "if (pm.response.code === 200) {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.environment.set('ACCESS_TOKEN', jsonData.accessToken);",
-                  "    pm.environment.set('REFRESH_TOKEN', jsonData.refreshToken);",
-                  "    pm.environment.set('USER_ID', jsonData.userId);",
-                  "    console.log('✅ Phone OTP Login successful - tokens saved');",
-                  "    console.log('User ID:', jsonData.userId);",
-                  "    console.log('Role:', jsonData.role);",
-                  "}"
-                ],
-                "type": "text/javascript"
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
               }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"phoneNumber\": \"+1234567890\",\n  \"otp\": \"123456\"\n}"
-            },
-            "url": {
-              "raw": "{{BASE_URL}}/api/auth/login/phone/verify",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "auth", "login", "phone", "verify"]
-            },
-            "description": "Verify phone OTP and complete passwordless login.\n\n**No authentication required.**\n**Max attempts:** 3 per OTP\n\n**Returns:** Same response as regular login (accessToken, refreshToken, user info)\n\n**Bonus:** Automatically verifies phone number on successful login."
-          },
-          "response": [
-            {
-              "name": "Success",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzUxMiJ9...\",\n  \"refreshToken\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"tokenType\": \"Bearer\",\n  \"userId\": 1,\n  \"email\": \"user@example.com\",\n  \"fullName\": \"John Doe\",\n  \"role\": \"USER\",\n  \"expiresIn\": 86400\n}"
-            },
-            {
-              "name": "Invalid OTP",
-              "status": "Bad Request",
-              "code": 400,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"success\": false,\n  \"message\": \"Invalid OTP code\"\n}"
-            },
-            {
-              "name": "OTP Expired",
-              "status": "Bad Request",
-              "code": 400,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"success\": false,\n  \"message\": \"OTP has expired. Please request a new one.\"\n}"
             }
           ]
         },
         {
-          "name": "📧 Email OTP - Send OTP",
+          "name": "Actuator health",
           "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"user@example.com\"\n}"
-            },
-            "url": {
-              "raw": "{{BASE_URL}}/api/auth/login/email/send-otp",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "auth", "login", "email", "send-otp"]
-            },
-            "description": "Send OTP to email for passwordless login.\n\n**No authentication required.**\n**OTP validity:** 5 minutes\n**Rate limit:** 1 request per minute per email\n\n**Note:** In development, check console logs for the OTP code (StubEmailService).\n\n**Response includes:**\n- maskedEmail: e.g., 'u***@example.com'\n- expiresInMinutes: 5"
-          },
-          "response": [
-            {
-              "name": "Success",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"success\": true,\n  \"message\": \"OTP sent successfully to u***@example.com\",\n  \"maskedEmail\": \"u***@example.com\",\n  \"expiresInMinutes\": 5\n}"
-            },
-            {
-              "name": "User Not Found",
-              "status": "Not Found",
-              "code": 404,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"success\": false,\n  \"message\": \"No account found with this email address\"\n}"
-            },
-            {
-              "name": "Rate Limited",
-              "status": "Too Many Requests",
-              "code": 429,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"success\": false,\n  \"message\": \"Too many OTP requests. Please wait before trying again.\"\n}"
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/actuator/health",
+            "description": "Public (`/actuator/health/**` is in the permit list). Used by Render's health check and the mobile app's `authInfraService`.",
+            "auth": {
+              "type": "noauth"
             }
-          ]
-        },
-        {
-          "name": "📧 Email OTP - Verify & Login",
+          },
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "if (pm.response.code === 200) {",
-                  "    var jsonData = pm.response.json();",
-                  "    pm.environment.set('ACCESS_TOKEN', jsonData.accessToken);",
-                  "    pm.environment.set('REFRESH_TOKEN', jsonData.refreshToken);",
-                  "    pm.environment.set('USER_ID', jsonData.userId);",
-                  "    console.log('✅ Email OTP Login successful - tokens saved');",
-                  "    console.log('User ID:', jsonData.userId);",
-                  "    console.log('Role:', jsonData.role);",
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Actuator info",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/actuator/info",
+            "description": "Public. App name/version from `info.*` in `application.yaml`.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 · Register & password login",
+      "description": "Email/password registration and login. Every successful call returns a `LoginResponse` and the test script stores\n`ACCESS_TOKEN`, `REFRESH_TOKEN` and `USER_ID` in the environment, so the following folders work without copy-paste.\n\nRate-limit bucket: **auth** (10 requests/min per IP).",
+      "item": [
+        {
+          "name": "Register USER",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/auth/register",
+            "description": "Public. `AuthController.register` → `AuthService.register`. Returns **201** + `LoginResponse`.\n\n- `role` must be `USER` or `SERVICE_PROVIDER` (anything else → 403 *Invalid Role*).\n- `password`: 8–100 chars with upper, lower, digit and one of `@$!%*?&#^()_+-=`.\n- `phoneNumber` is optional; stored normalised to 10 digits (`+919876543210` → `9876543210`).\n\nThe pre-request script generates a fresh email + phone every run so you never hit 409 duplicates.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{USER_EMAIL}}\",\n  \"phoneNumber\": \"{{USER_PHONE}}\",\n  \"password\": \"{{USER_PASSWORD}}\",\n  \"fullName\": \"Tejswita Test User\",\n  \"role\": \"USER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const ts = Date.now();",
+                  "pm.environment.set('USER_EMAIL', 'tej.user.' + ts + '@example.com');",
+                  "pm.environment.set('USER_PHONE', '9' + Math.floor(100000000 + Math.random() * 899999999));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([201]);",
+                  "});",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const body = pm.response.json();",
+                  "    pm.environment.set('ACCESS_TOKEN', body.accessToken);",
+                  "    pm.environment.set('REFRESH_TOKEN', body.refreshToken);",
+                  "    pm.environment.set('USER_ID', body.userId);",
+                  "    pm.test('Returns accessToken + refreshToken', function () {",
+                  "        pm.expect(body.accessToken).to.be.a('string');",
+                  "        pm.expect(body.refreshToken).to.be.a('string');",
+                  "    });",
                   "}"
-                ],
-                "type": "text/javascript"
+                ]
               }
             }
-          ],
+          ]
+        },
+        {
+          "name": "Register SERVICE_PROVIDER",
           "request": {
             "method": "POST",
             "header": [
@@ -543,270 +171,421 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{BASE_URL}}/api/auth/register",
+            "description": "Same endpoint, `role: SERVICE_PROVIDER`. Tokens are saved as `PROVIDER_*` so they don't overwrite the USER's.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"user@example.com\",\n  \"otp\": \"123456\"\n}"
-            },
-            "url": {
-              "raw": "{{BASE_URL}}/api/auth/login/email/verify",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "auth", "login", "email", "verify"]
-            },
-            "description": "Verify email OTP and complete passwordless login.\n\n**No authentication required.**\n**Max attempts:** 3 per OTP\n\n**Returns:** Same response as regular login (accessToken, refreshToken, user info)\n\n**Bonus:** Automatically verifies email on successful login."
-          },
-          "response": [
-            {
-              "name": "Success",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzUxMiJ9...\",\n  \"refreshToken\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"tokenType\": \"Bearer\",\n  \"userId\": 1,\n  \"email\": \"user@example.com\",\n  \"fullName\": \"John Doe\",\n  \"role\": \"USER\",\n  \"expiresIn\": 86400\n}"
-            },
-            {
-              "name": "Invalid OTP",
-              "status": "Bad Request",
-              "code": 400,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"success\": false,\n  \"message\": \"Invalid OTP code\"\n}"
-            },
-            {
-              "name": "OTP Expired",
-              "status": "Bad Request",
-              "code": 400,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"success\": false,\n  \"message\": \"OTP has expired. Please request a new one.\"\n}"
-            }
-          ]
-        }
-      ],
-      "description": "🆕 Passwordless OTP-based login. No password required - just verify with OTP sent to phone or email.\n\n**Phone OTP Login:**\n1. POST /api/auth/login/phone/send-otp\n2. POST /api/auth/login/phone/verify\n\n**Email OTP Login:**\n1. POST /api/auth/login/email/send-otp\n2. POST /api/auth/login/email/verify\n\n**Features:**\n- OTP valid for 5 minutes\n- Max 3 verification attempts\n- Auto-verifies phone/email on success\n- Returns same tokens as regular login"
-    },
-    {
-      "name": "Verification",
-      "item": [
-        {
-          "name": "Send Email Verification",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{ACCESS_TOKEN}}",
-                  "type": "string"
+              "raw": "{\n  \"email\": \"{{PROVIDER_EMAIL}}\",\n  \"phoneNumber\": \"{{PROVIDER_PHONE}}\",\n  \"password\": \"{{USER_PASSWORD}}\",\n  \"fullName\": \"Tejswita Test Provider\",\n  \"role\": \"SERVICE_PROVIDER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
                 }
-              ]
-            },
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{ACCESS_TOKEN}}"
               }
-            ],
-            "url": {
-              "raw": "{{BASE_URL}}/api/auth/email/send-verification",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "auth", "email", "send-verification"]
             },
-            "description": "Send verification email to the authenticated user's email address.\n\n**Requires:** Valid JWT\n**Rate limit:** 1 request per 5 minutes\n\n**Note:** In development, check console logs for the verification token (StubEmailService)."
+            "auth": {
+              "type": "noauth"
+            }
           },
-          "response": [
+          "event": [
             {
-              "name": "Success",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"success\": true,\n  \"message\": \"Verification email sent successfully\",\n  \"maskedTarget\": \"us****@example.com\"\n}"
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const ts = Date.now();",
+                  "pm.environment.set('PROVIDER_EMAIL', 'tej.provider.' + ts + '@example.com');",
+                  "pm.environment.set('PROVIDER_PHONE', '9' + Math.floor(100000000 + Math.random() * 899999999));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([201]);",
+                  "});",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const body = pm.response.json();",
+                  "    pm.environment.set('PROVIDER_ACCESS_TOKEN', body.accessToken);",
+                  "    pm.environment.set('PROVIDER_REFRESH_TOKEN', body.refreshToken);",
+                  "    pm.environment.set('PROVIDER_USER_ID', body.userId);",
+                  "    pm.test('Returns accessToken + refreshToken', function () {",
+                  "        pm.expect(body.accessToken).to.be.a('string');",
+                  "        pm.expect(body.refreshToken).to.be.a('string');",
+                  "    });",
+                  "}"
+                ]
+              }
             }
           ]
         },
         {
-          "name": "Verify Email (with token)",
+          "name": "Register with role ADMIN → 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/auth/register",
+            "description": "RBAC guard: public registration only allows `USER` / `SERVICE_PROVIDER`\n(`AuthService.register`). ADMIN, IT_ADMIN and SUPPORT can only be created by an admin via `POST /api/admin/users`.\nExpected: **403** `{\"error\":\"Invalid Role\", ...}`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"not.allowed@example.com\",\n  \"password\": \"Passw0rd!23\",\n  \"fullName\": \"Should Fail\",\n  \"role\": \"ADMIN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 403', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([403]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login (email + password)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/auth/login",
+            "description": "Public. `AuthService.login`. 5 wrong passwords lock the identifier for 15 minutes (429).\nNote: the lookup is case-sensitive on the email you send — send it lowercase.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{USER_EMAIL}}\",\n  \"password\": \"{{USER_PASSWORD}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const body = pm.response.json();",
+                  "    pm.environment.set('ACCESS_TOKEN', body.accessToken);",
+                  "    pm.environment.set('REFRESH_TOKEN', body.refreshToken);",
+                  "    pm.environment.set('USER_ID', body.userId);",
+                  "    pm.test('Returns accessToken + refreshToken', function () {",
+                  "        pm.expect(body.accessToken).to.be.a('string');",
+                  "        pm.expect(body.refreshToken).to.be.a('string');",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login (phone + password)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/auth/login/phone",
+            "description": "Public. `AuthService.loginWithPhone`. Phone pattern `^\\+?[1-9]\\d{6,14}$`.\nAccounts created by phone signup have no password, so they cannot use this — they use OTP login.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"{{USER_PHONE}}\",\n  \"password\": \"{{USER_PASSWORD}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const body = pm.response.json();",
+                  "    pm.environment.set('ACCESS_TOKEN', body.accessToken);",
+                  "    pm.environment.set('REFRESH_TOKEN', body.refreshToken);",
+                  "    pm.environment.set('USER_ID', body.userId);",
+                  "    pm.test('Returns accessToken + refreshToken', function () {",
+                  "        pm.expect(body.accessToken).to.be.a('string');",
+                  "        pm.expect(body.refreshToken).to.be.a('string');",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh tokens (rotation)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/auth/refresh",
+            "description": "Public. Exchanges the refresh token for a **new access token and a new refresh token**; the old refresh token is\nrevoked (`RefreshTokenService.rotateRefreshToken`). Refresh tokens live 60 days, access tokens 24 h.\n\nThe pre-request script keeps the old token in `PREV_REFRESH_TOKEN` for the next request.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{REFRESH_TOKEN}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('PREV_REFRESH_TOKEN', pm.environment.get('REFRESH_TOKEN'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const body = pm.response.json();",
+                  "    pm.environment.set('ACCESS_TOKEN', body.accessToken);",
+                  "    pm.environment.set('REFRESH_TOKEN', body.refreshToken);",
+                  "    pm.environment.set('USER_ID', body.userId);",
+                  "    pm.test('Returns accessToken + refreshToken', function () {",
+                  "        pm.expect(body.accessToken).to.be.a('string');",
+                  "        pm.expect(body.refreshToken).to.be.a('string');",
+                  "    });",
+                  "}",
+                  "pm.test('Refresh token was rotated', function () {",
+                  "    pm.expect(pm.response.json().refreshToken).to.not.eql(pm.environment.get('PREV_REFRESH_TOKEN'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh again with the OLD token (45 s grace window)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/auth/refresh",
+            "description": "Replays the token that was just rotated. Within `jwt.refresh-token.rotation-grace-seconds` (45 s) the service returns\nthe **same successor** instead of 401 — this protects the mobile app when two requests refresh at the same time.\nAfter 45 s the same call returns 401. Send this within 45 s of the previous request.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{PREV_REFRESH_TOKEN}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test('Returns the same successor refresh token', function () {",
+                  "    pm.expect(pm.response.json().refreshToken).to.eql(pm.environment.get('REFRESH_TOKEN'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 · Who am I (token introspection)",
+      "description": "Endpoints that describe the caller. All require `Authorization: Bearer {{ACCESS_TOKEN}}` (inherited from the collection).",
+      "item": [
+        {
+          "name": "Validate token (JWT claims)",
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{BASE_URL}}/api/auth/email/verify?token={{EMAIL_VERIFY_TOKEN}}",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "auth", "email", "verify"],
-              "query": [
-                {
-                  "key": "token",
-                  "value": "{{EMAIL_VERIFY_TOKEN}}",
-                  "description": "Token from email link or console logs"
-                }
-              ]
-            },
-            "description": "Verify email using token from verification link.\n\n**No authentication required** - public endpoint.\n\nGet token from:\n- Email link, OR\n- Console logs (StubEmailService in dev mode)"
+            "url": "{{BASE_URL}}/api/token/validate",
+            "description": "`TokenController` → `TokenValidationService`. Returns the claims decoded from the JWT\n(`userId`, `email` = `sub`, `role`, `tokenType`, `issuedAt`, `expiresAt`). The role here is the **JWT** role.\nSee `docs/onboarding/08-walkthrough-send-otp-and-validate-token.md` for the full request lifecycle."
           },
-          "response": [
+          "event": [
             {
-              "name": "Success",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"success\": true,\n  \"message\": \"Email verified successfully\",\n  \"maskedTarget\": \"user@example.com\"\n}"
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test('valid is true', () => pm.expect(pm.response.json().valid).to.eql(true));"
+                ]
+              }
             }
           ]
         },
         {
-          "name": "Send Phone OTP",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{ACCESS_TOKEN}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{ACCESS_TOKEN}}"
-              }
-            ],
-            "url": {
-              "raw": "{{BASE_URL}}/api/auth/otp/send",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "auth", "otp", "send"]
-            },
-            "description": "Send OTP to authenticated user's phone number.\n\n**Requires:** Valid JWT + phone number on account\n**OTP validity:** 5 minutes\n**Rate limit:** 3 requests per minute\n\n**Note:** In development, check console logs for the OTP code (StubSmsService)."
-          },
-          "response": [
-            {
-              "name": "Success",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"success\": true,\n  \"message\": \"OTP sent successfully\",\n  \"maskedTarget\": \"****7890\"\n}"
-            }
-          ]
-        },
-        {
-          "name": "Verify Phone OTP",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{ACCESS_TOKEN}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{ACCESS_TOKEN}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"otp\": \"123456\"\n}"
-            },
-            "url": {
-              "raw": "{{BASE_URL}}/api/auth/otp/verify",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "auth", "otp", "verify"]
-            },
-            "description": "Verify OTP code for phone verification.\n\n**Requires:** Valid JWT\n**Max attempts:** 3 (then OTP is invalidated)\n\nGet OTP from console logs (StubSmsService in dev mode)."
-          },
-          "response": [
-            {
-              "name": "Success",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"success\": true,\n  \"message\": \"Phone number verified successfully\"\n}"
-            }
-          ]
-        }
-      ],
-      "description": "Email and phone verification endpoints"
-    },
-    {
-      "name": "Password Reset",
-      "item": [
-        {
-          "name": "Forgot Password",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"user@example.com\"\n}"
-            },
-            "url": {
-              "raw": "{{BASE_URL}}/api/auth/forgot-password",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "auth", "forgot-password"]
-            },
-            "description": "Request password reset email.\n\n**No authentication required.**\n**Always returns 200** to prevent email enumeration.\n\n**Note:** In development, check console logs for the reset token (StubEmailService)."
-          },
-          "response": [
-            {
-              "name": "Success (always)",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"success\": true,\n  \"message\": \"If your email is registered, you will receive a password reset link shortly.\"\n}"
-            }
-          ]
-        },
-        {
-          "name": "Validate Reset Token",
+          "name": "Token me (same as validate)",
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{BASE_URL}}/api/auth/reset-password/validate?token={{RESET_TOKEN}}",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "auth", "reset-password", "validate"],
-              "query": [
-                {
-                  "key": "token",
-                  "value": "{{RESET_TOKEN}}",
-                  "description": "Token from password reset email"
-                }
-              ]
-            },
-            "description": "Validate password reset token before showing reset form.\n\n**No authentication required.**\n**Token validity:** 1 hour"
+            "url": "{{BASE_URL}}/api/token/me",
+            "description": "Same service call and response as `/api/token/validate`."
           },
-          "response": [
+          "event": [
             {
-              "name": "Valid Token",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"success\": true,\n  \"message\": \"Token is valid\"\n}"
-            },
-            {
-              "name": "Invalid Token",
-              "status": "Bad Request",
-              "code": 400,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"success\": false,\n  \"message\": \"Invalid or expired token\"\n}"
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
             }
           ]
         },
         {
-          "name": "Reset Password",
+          "name": "Validate session (DB view)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/api/auth/validate",
+            "description": "`SessionController.validateToken`. Unlike `/api/token/validate` this reads the **database** user row:\nreturns `role` from the DB plus `isEmailVerified` / `isPhoneVerified`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "My profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/api/users/me",
+            "description": "`UserController.getCurrentUserProfile` → `UserProfileResponse` (includes `hasPassword`, timestamps).\nThe mobile app and the Node backend both call this."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 · Verify my phone & email (logged in)",
+      "description": "Marks the logged-in user's stored phone/email as verified. Phone OTPs and email links are printed to the console by\nthe stub providers in the `local` profile.",
+      "item": [
+        {
+          "name": "Send phone verification OTP",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{BASE_URL}}/api/auth/otp/send",
+            "description": "JWT required. `PhoneVerificationService.sendOtp` — sends an OTP to the phone already on the account.\n400 if the account has no phone or it is already verified. Bucket: **otp** (5/min)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify phone OTP",
           "request": {
             "method": "POST",
             "header": [
@@ -815,712 +594,2162 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{BASE_URL}}/api/auth/otp/verify",
+            "description": "JWT required. Sets `isPhoneVerified=true`. 3 attempts per OTP, 5-minute expiry.\n\n**Before sending:** copy the 6-digit code from the service console (`OTP CODE: ...`) into the `OTP` environment variable.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"token\": \"{{RESET_TOKEN}}\",\n  \"newPassword\": \"NewSecurePassword123\"\n}"
-            },
-            "url": {
-              "raw": "{{BASE_URL}}/api/auth/reset-password",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "auth", "reset-password"]
-            },
-            "description": "Reset password using token from email.\n\n**No authentication required.**\n**Token is single-use.**\n**All refresh tokens are revoked after reset.**"
-          },
-          "response": [
-            {
-              "name": "Success",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"success\": true,\n  \"message\": \"Password reset successfully. Please login with your new password.\"\n}"
-            }
-          ]
-        }
-      ],
-      "description": "Forgot password and reset password flow"
-    },
-    {
-      "name": "Token",
-      "item": [
-        {
-          "name": "Validate Token",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{ACCESS_TOKEN}}",
-                  "type": "string"
+              "raw": "{\n  \"otp\": \"{{OTP}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
                 }
-              ]
-            },
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{ACCESS_TOKEN}}"
               }
-            ],
-            "url": {
-              "raw": "{{BASE_URL}}/api/token/validate",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "token", "validate"]
-            },
-            "description": "Validate JWT and return claims.\n\n**Primary use case:** Node.js services validating user tokens.\n\n**Returns:** userId, email, role, tokenType, issuedAt, expiresAt"
+            }
           },
-          "response": [
+          "event": [
             {
-              "name": "Valid Token",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"valid\": true,\n  \"userId\": 1,\n  \"email\": \"user@example.com\",\n  \"role\": \"USER\",\n  \"tokenType\": \"ACCESS\",\n  \"issuedAt\": 1734600000,\n  \"expiresAt\": 1734686400\n}"
-            },
-            {
-              "name": "Invalid Token",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"valid\": false\n}"
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
             }
           ]
         },
         {
-          "name": "Get Current User (from Token)",
+          "name": "Send email verification link",
           "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{ACCESS_TOKEN}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{ACCESS_TOKEN}}"
-              }
-            ],
-            "url": {
-              "raw": "{{BASE_URL}}/api/token/me",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "token", "me"]
-            },
-            "description": "Get current user info from JWT claims.\n\nSame as /api/token/validate but semantically for \"who am I?\" use case."
+            "method": "POST",
+            "header": [],
+            "url": "{{BASE_URL}}/api/auth/email/send-verification",
+            "description": "JWT required. `EmailVerificationService`. The console prints `TOKEN: ...` and `VERIFICATION URL: ...`.\nCopy the token into `EMAIL_VERIFY_TOKEN` (or simply open the URL in a browser). One request per 5 minutes (429)."
           },
-          "response": []
-        }
-      ],
-      "description": "Token validation endpoints for external services"
-    },
-    {
-      "name": "User",
-      "item": [
-        {
-          "name": "Get My Profile (Full Details)",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{ACCESS_TOKEN}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{ACCESS_TOKEN}}"
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
               }
-            ],
-            "url": {
-              "raw": "{{BASE_URL}}/api/users/me",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "users", "me"]
-            },
-            "description": "Get authenticated user's complete profile from database.\n\n**Returns ALL user fields:**\n- userId: Unique user ID\n- email: User's email address\n- phoneNumber: User's phone number (nullable)\n- fullName: User's full name\n- role: USER, SERVICE_PROVIDER, ADMIN, IT_ADMIN, SUPPORT\n- isActive: Account active status\n- isEmailVerified: Email verification status\n- isPhoneVerified: Phone verification status\n- createdAt: Account creation timestamp\n- updatedAt: Last update timestamp\n- lastLoginAt: Last login timestamp (nullable)\n\n**Use this endpoint to:**\n- Display user profile in app\n- Check verification status\n- Show complete user details on profile page"
-          },
-          "response": [
-            {
-              "name": "Success - USER",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"userId\": 32,\n  \"email\": \"user@example.com\",\n  \"phoneNumber\": \"+1234567890\",\n  \"fullName\": \"John Doe\",\n  \"role\": \"USER\",\n  \"isActive\": true,\n  \"isEmailVerified\": true,\n  \"isPhoneVerified\": false,\n  \"createdAt\": \"2026-01-18T12:16:13.744722\",\n  \"updatedAt\": \"2026-01-18T12:16:13.744722\",\n  \"lastLoginAt\": \"2026-01-18T14:30:00.000000\"\n}"
-            },
-            {
-              "name": "Success - SERVICE_PROVIDER",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"userId\": 34,\n  \"email\": \"provider@example.com\",\n  \"phoneNumber\": \"9090909090\",\n  \"fullName\": \"ABC Services\",\n  \"role\": \"SERVICE_PROVIDER\",\n  \"isActive\": true,\n  \"isEmailVerified\": false,\n  \"isPhoneVerified\": false,\n  \"createdAt\": \"2026-01-18T14:48:18.449517\",\n  \"updatedAt\": \"2026-01-18T14:48:18.449517\",\n  \"lastLoginAt\": null\n}"
-            },
-            {
-              "name": "Error - Unauthorized",
-              "status": "Unauthorized",
-              "code": 401,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"error\": \"Unauthorized\",\n  \"message\": \"Full authentication is required to access this resource\"\n}"
             }
           ]
         },
         {
-          "name": "Change Password",
+          "name": "Open email verification link",
           "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/api/auth/email/verify?token={{EMAIL_VERIFY_TOKEN}}",
+            "description": "Public. Returns an **HTML page** (status 200 even on failure) that redirects to the app deep link\n`fixhomi://email-verified?...`. The token is stored hashed (SHA-256) in the DB, so it is only visible in the console.",
             "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{ACCESS_TOKEN}}",
-                  "type": "string"
-                }
-              ]
-            },
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test('Success page', () => pm.expect(pm.response.text()).to.include('status=success'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 · Passwordless OTP login",
+      "description": "Login for an **existing** account with a one-time code (`OtpLoginController` → `OtpLoginService`).\nUnknown phone/email → 404 `USER_NOT_FOUND` (sign-up is a separate flow, folder 05).\nErrors here use the shape `{success:false, code, message}` rather than the global `ErrorResponse`.",
+      "item": [
+        {
+          "name": "Phone OTP · send",
+          "request": {
             "method": "POST",
             "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{ACCESS_TOKEN}}"
-              },
               {
                 "key": "Content-Type",
                 "value": "application/json"
               }
             ],
+            "url": "{{BASE_URL}}/api/auth/login/phone/send-otp",
+            "description": "Public. Max 3 sends per phone per 5 minutes (429 `TOO_MANY_REQUESTS`). Full walkthrough of this request:\n`docs/onboarding/08-walkthrough-send-otp-and-validate-token.md`.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"currentPassword\": \"password123\",\n  \"newPassword\": \"NewSecurePassword456\"\n}"
+              "raw": "{\n  \"phoneNumber\": \"{{USER_PHONE}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
-            "url": {
-              "raw": "{{BASE_URL}}/api/users/change-password",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "users", "change-password"]
-            },
-            "description": "Change password for authenticated user.\n\n**Validation:**\n- Current password must be correct\n- New password must be different from current\n- New password: 8-100 characters"
+            "auth": {
+              "type": "noauth"
+            }
           },
-          "response": [
+          "event": [
             {
-              "name": "Success",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"message\": \"Password changed successfully\"\n}"
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
             }
           ]
         },
         {
-          "name": "Update Profile",
+          "name": "Phone OTP · verify & login",
           "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{ACCESS_TOKEN}}",
-                  "type": "string"
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/auth/login/phone/verify",
+            "description": "Public. Returns a full `LoginResponse`.\n\n**Before sending:** copy the 6-digit code from the service console (`OTP CODE: ...`) into the `OTP` environment variable.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"{{USER_PHONE}}\",\n  \"otp\": \"{{OTP}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
                 }
-              ]
+              }
             },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const body = pm.response.json();",
+                  "    pm.environment.set('ACCESS_TOKEN', body.accessToken);",
+                  "    pm.environment.set('REFRESH_TOKEN', body.refreshToken);",
+                  "    pm.environment.set('USER_ID', body.userId);",
+                  "    pm.test('Returns accessToken + refreshToken', function () {",
+                  "        pm.expect(body.accessToken).to.be.a('string');",
+                  "        pm.expect(body.refreshToken).to.be.a('string');",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Email OTP · send",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/auth/login/email/send-otp",
+            "description": "Public. Console prints `EMAIL TYPE: Login OTP` with `OTP CODE: ...`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{USER_EMAIL}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Email OTP · verify & login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/auth/login/email/verify",
+            "description": "Public. Also marks the email verified.\n\n**Before sending:** copy the 6-digit code from the service console (`OTP CODE: ...`) into the `OTP` environment variable.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{USER_EMAIL}}\",\n  \"otp\": \"{{OTP}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const body = pm.response.json();",
+                  "    pm.environment.set('ACCESS_TOKEN', body.accessToken);",
+                  "    pm.environment.set('REFRESH_TOKEN', body.refreshToken);",
+                  "    pm.environment.set('USER_ID', body.userId);",
+                  "    pm.test('Returns accessToken + refreshToken', function () {",
+                  "        pm.expect(body.accessToken).to.be.a('string');",
+                  "        pm.expect(body.refreshToken).to.be.a('string');",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05 · Phone signup (USER only)",
+      "description": "Creates a **new USER** account from a phone number alone (`PhoneSignupController` → `PhoneSignupService`).\nThe role is hard-coded to USER; the account has no email and no password. No user row exists until verify succeeds.",
+      "item": [
+        {
+          "name": "Signup · send OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/auth/signup/phone/send-otp",
+            "description": "Public. 409 `ALREADY_REGISTERED` if a verified active account already has this phone.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"{{SIGNUP_PHONE}}\",\n  \"fullName\": \"Phone Signup Test\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('SIGNUP_PHONE', '9' + Math.floor(100000000 + Math.random() * 899999999));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Signup · verify OTP & create account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/auth/signup/phone/verify",
+            "description": "Public. Returns `LoginResponse` with `isNewUser: true`, `role: USER`, `email: null`.\n\n**Before sending:** copy the 6-digit code from the service console (`OTP CODE: ...`) into the `OTP` environment variable.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"{{SIGNUP_PHONE}}\",\n  \"otp\": \"{{OTP}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const body = pm.response.json();",
+                  "    pm.environment.set('SIGNUP_ACCESS_TOKEN', body.accessToken);",
+                  "    pm.environment.set('SIGNUP_REFRESH_TOKEN', body.refreshToken);",
+                  "    pm.environment.set('SIGNUP_USER_ID', body.userId);",
+                  "    pm.test('Returns accessToken + refreshToken', function () {",
+                  "        pm.expect(body.accessToken).to.be.a('string');",
+                  "        pm.expect(body.refreshToken).to.be.a('string');",
+                  "    });",
+                  "}",
+                  "pm.test('New USER created', function () {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b.isNewUser).to.eql(true);",
+                  "    pm.expect(b.role).to.eql('USER');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06 · My account (/api/users)",
+      "description": "Self-service account operations. All act on the caller only (the user id comes from the JWT, never from the body).",
+      "item": [
+        {
+          "name": "Update profile (name)",
+          "request": {
             "method": "PUT",
             "header": [
               {
-                "key": "Authorization",
-                "value": "Bearer {{ACCESS_TOKEN}}"
-              },
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/users/profile",
+            "description": "`UserService.updateProfile`. `fullName` 2–100 chars. A `phoneNumber` in this body is **ignored** unless the account has\nno phone at all (legacy add-only path for old app builds) — use the phone-change endpoints instead.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Tejswita Updated\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Set / change email",
+          "request": {
+            "method": "POST",
+            "header": [
               {
                 "key": "Content-Type",
                 "value": "application/json"
               }
             ],
+            "url": "{{BASE_URL}}/api/users/email",
+            "description": "`UserService.setEmail`. Stores the email unverified and sends a verification link (console).\n409 if another active account uses it. The test script makes the new email the current `USER_EMAIL`.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"fullName\": \"Updated Name\",\n  \"phoneNumber\": \"+1234567890\"\n}"
-            },
-            "url": {
-              "raw": "{{BASE_URL}}/api/users/profile",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "users", "profile"]
-            },
-            "description": "Update authenticated user's profile.\n\n**Request fields (all optional):**\n- fullName: 2-100 characters\n- phoneNumber: max 20 characters (can be null to clear)\n\n**Notes:**\n- Only provided fields are updated\n- Phone number uniqueness is enforced\n- Returns complete updated user profile\n\n**Use this endpoint to:**\n- Update user's display name\n- Update phone number\n- Sync profile changes from frontend"
+              "raw": "{\n  \"email\": \"{{NEW_EMAIL}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
-          "response": [
+          "event": [
             {
-              "name": "Success",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"userId\": 32,\n  \"email\": \"user@example.com\",\n  \"phoneNumber\": \"+1234567890\",\n  \"fullName\": \"Updated Name\",\n  \"role\": \"USER\",\n  \"isActive\": true,\n  \"isEmailVerified\": true,\n  \"isPhoneVerified\": false,\n  \"createdAt\": \"2026-01-18T12:16:13.744722\",\n  \"updatedAt\": \"2026-01-18T14:30:00.000000\",\n  \"lastLoginAt\": \"2026-01-18T14:30:00.000000\"\n}"
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('NEW_EMAIL', 'tej.changed.' + Date.now() + '@example.com');"
+                ]
+              }
             },
             {
-              "name": "Error - Duplicate Phone",
-              "status": "Conflict",
-              "code": 409,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"error\": \"Conflict\",\n  \"message\": \"User already exists with phoneNumber: +1234567890\"\n}"
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    pm.environment.set('USER_EMAIL', pm.environment.get('NEW_EMAIL'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Change phone · send OTP to new number",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/users/phone/change/send-otp",
+            "description": "`PhoneVerificationService.sendChangeOtp`. The current number stays until the new one is verified.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"{{NEW_PHONE}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('NEW_PHONE', '9' + Math.floor(100000000 + Math.random() * 899999999));"
+                ]
+              }
             },
             {
-              "name": "Error - Validation Failed",
-              "status": "Bad Request",
-              "code": 400,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"error\": \"Validation Failed\",\n  \"message\": \"Full name must be between 2 and 100 characters\"\n}"
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Change phone · verify",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/users/phone/change/verify",
+            "description": "Replaces the number and marks it verified in one step.\n\n**Before sending:** copy the 6-digit code from the service console (`OTP CODE: ...`) into the `OTP` environment variable.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"{{NEW_PHONE}}\",\n  \"otp\": \"{{OTP}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    pm.environment.set('USER_PHONE', pm.environment.get('NEW_PHONE'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Change password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/users/change-password",
+            "description": "`UserService.changePassword`. When the account already had a password, **all its refresh tokens are revoked**\n(existing access tokens keep working until they expire). Accounts without a password may omit `currentPassword`.\nThe next request logs in again with the new password.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"{{USER_PASSWORD}}\",\n  \"newPassword\": \"{{NEXT_PASSWORD}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('NEXT_PASSWORD', 'Fixhomi@' + Math.floor(1000 + Math.random() * 8999));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    pm.environment.set('USER_PASSWORD', pm.environment.get('NEXT_PASSWORD'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login again (new password)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/auth/login",
+            "description": "Fresh tokens after the password change.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{USER_EMAIL}}\",\n  \"password\": \"{{USER_PASSWORD}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const body = pm.response.json();",
+                  "    pm.environment.set('ACCESS_TOKEN', body.accessToken);",
+                  "    pm.environment.set('REFRESH_TOKEN', body.refreshToken);",
+                  "    pm.environment.set('USER_ID', body.userId);",
+                  "    pm.test('Returns accessToken + refreshToken', function () {",
+                  "        pm.expect(body.accessToken).to.be.a('string');",
+                  "        pm.expect(body.refreshToken).to.be.a('string');",
+                  "    });",
+                  "}"
+                ]
+              }
             }
           ]
         }
-      ],
-      "description": "User profile and account management"
+      ]
     },
     {
-      "name": "Admin",
+      "name": "07 · Forgot / reset password",
+      "description": "Three independent ways to reset a forgotten password (`PasswordResetService`). Each success revokes all refresh tokens,\nand each test script stores the new password in `USER_PASSWORD`.",
       "item": [
         {
-          "name": "Create User (ADMIN role)",
+          "name": "Link · request reset email",
           "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{ACCESS_TOKEN}}",
-                  "type": "string"
-                }
-              ]
-            },
             "method": "POST",
             "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{ACCESS_TOKEN}}"
-              },
               {
                 "key": "Content-Type",
                 "value": "application/json"
               }
             ],
+            "url": "{{BASE_URL}}/api/auth/forgot-password",
+            "description": "Public. Always 200 (does not reveal whether the email exists). Console prints\n`EMAIL TYPE: Password Reset (Mobile + Web)` and `TOKEN: ...` — copy it into `RESET_TOKEN`.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"newadmin@example.com\",\n  \"password\": \"AdminPass123\",\n  \"fullName\": \"Admin User\",\n  \"phoneNumber\": \"+1234567890\",\n  \"role\": \"ADMIN\"\n}"
+              "raw": "{\n  \"email\": \"{{USER_EMAIL}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
-            "url": {
-              "raw": "{{BASE_URL}}/api/admin/users",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "admin", "users"]
-            },
-            "description": "Create user with ADMIN role.\n\n**Requires:** JWT with ADMIN or IT_ADMIN role\n**Allowed roles:** ADMIN, IT_ADMIN, SUPPORT only\n**isEmailVerified:** Set to true automatically"
+            "auth": {
+              "type": "noauth"
+            }
           },
-          "response": [
+          "event": [
             {
-              "name": "Success",
-              "status": "Created",
-              "code": 201,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"id\": 5,\n  \"email\": \"newadmin@example.com\",\n  \"fullName\": \"Admin User\",\n  \"role\": \"ADMIN\",\n  \"isActive\": true,\n  \"createdAt\": \"2025-12-19T12:00:00\",\n  \"lastLoginAt\": null\n}"
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
             }
           ]
         },
         {
-          "name": "Create User (IT_ADMIN role)",
+          "name": "Link · validate token",
           "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/api/auth/reset-password/validate?token={{RESET_TOKEN}}",
+            "description": "Public. 200 if the token exists, is unused and less than 1 hour old; otherwise 400.",
             "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{ACCESS_TOKEN}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{ACCESS_TOKEN}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"itadmin@example.com\",\n  \"password\": \"ITAdminPass123\",\n  \"fullName\": \"IT Admin User\",\n  \"phoneNumber\": \"+1234567890\",\n  \"role\": \"IT_ADMIN\"\n}"
-            },
-            "url": {
-              "raw": "{{BASE_URL}}/api/admin/users",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "admin", "users"]
-            },
-            "description": "Create user with IT_ADMIN role.\n\n**Requires:** JWT with ADMIN or IT_ADMIN role"
+              "type": "noauth"
+            }
           },
-          "response": []
-        },
-        {
-          "name": "Create User (SUPPORT role)",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{ACCESS_TOKEN}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{ACCESS_TOKEN}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"support@example.com\",\n  \"password\": \"SupportPass123\",\n  \"fullName\": \"Support User\",\n  \"phoneNumber\": \"+1234567890\",\n  \"role\": \"SUPPORT\"\n}"
-            },
-            "url": {
-              "raw": "{{BASE_URL}}/api/admin/users",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "admin", "users"]
-            },
-            "description": "Create user with SUPPORT role.\n\n**Requires:** JWT with ADMIN or IT_ADMIN role"
-          },
-          "response": []
-        },
-        {
-          "name": "Disable User",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{ACCESS_TOKEN}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{ACCESS_TOKEN}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"isActive\": false\n}"
-            },
-            "url": {
-              "raw": "{{BASE_URL}}/api/admin/users/{{TARGET_USER_ID}}/status",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "admin", "users", "{{TARGET_USER_ID}}", "status"]
-            },
-            "description": "Disable a user account.\n\n**Requires:** JWT with ADMIN or IT_ADMIN role\n**Effect:** All refresh tokens are revoked, user cannot login"
-          },
-          "response": [
+          "event": [
             {
-              "name": "Success",
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "body": "{\n  \"id\": 2,\n  \"email\": \"user@example.com\",\n  \"fullName\": \"John Doe\",\n  \"role\": \"USER\",\n  \"isActive\": false,\n  \"createdAt\": \"2025-12-19T10:00:00\",\n  \"lastLoginAt\": \"2025-12-19T12:00:00\"\n}"
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
             }
           ]
         },
         {
-          "name": "Enable User",
+          "name": "Link · set new password",
           "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{ACCESS_TOKEN}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "PATCH",
+            "method": "POST",
             "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{ACCESS_TOKEN}}"
-              },
               {
                 "key": "Content-Type",
                 "value": "application/json"
               }
             ],
+            "url": "{{BASE_URL}}/api/auth/reset-password",
+            "description": "Public. Marks the token used, sets the password, revokes refresh tokens.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"isActive\": true\n}"
+              "raw": "{\n  \"token\": \"{{RESET_TOKEN}}\",\n  \"newPassword\": \"{{NEXT_PASSWORD}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
-            "url": {
-              "raw": "{{BASE_URL}}/api/admin/users/{{TARGET_USER_ID}}/status",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "admin", "users", "{{TARGET_USER_ID}}", "status"]
-            },
-            "description": "Enable a previously disabled user account.\n\n**Requires:** JWT with ADMIN or IT_ADMIN role"
+            "auth": {
+              "type": "noauth"
+            }
           },
-          "response": []
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('NEXT_PASSWORD', 'Fixhomi@' + Math.floor(1000 + Math.random() * 8999));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    pm.environment.set('USER_PASSWORD', pm.environment.get('NEXT_PASSWORD'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Phone OTP · request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/auth/forgot-password/phone",
+            "description": "Public. 404 `USER_NOT_FOUND` for an unknown phone or an account without a password.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"{{USER_PHONE}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Phone OTP · verify & set password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/auth/forgot-password/phone/verify",
+            "description": "Public.\n\n**Before sending:** copy the 6-digit code from the service console (`OTP CODE: ...`) into the `OTP` environment variable.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"{{USER_PHONE}}\",\n  \"otp\": \"{{OTP}}\",\n  \"newPassword\": \"{{NEXT_PASSWORD}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('NEXT_PASSWORD', 'Fixhomi@' + Math.floor(1000 + Math.random() * 8999));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    pm.environment.set('USER_PASSWORD', pm.environment.get('NEXT_PASSWORD'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Email OTP · request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/auth/forgot-password/email",
+            "description": "Public. Console prints the code under `EMAIL TYPE: Login OTP` (same template as login).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{USER_EMAIL}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Email OTP · verify & set password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/auth/forgot-password/email/verify",
+            "description": "Public.\n\n**Before sending:** copy the 6-digit code from the service console (`OTP CODE: ...`) into the `OTP` environment variable.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{USER_EMAIL}}\",\n  \"otp\": \"{{OTP}}\",\n  \"newPassword\": \"{{NEXT_PASSWORD}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('NEXT_PASSWORD', 'Fixhomi@' + Math.floor(1000 + Math.random() * 8999));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    pm.environment.set('USER_PASSWORD', pm.environment.get('NEXT_PASSWORD'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login again (after reset)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/auth/login",
+            "description": "Fresh tokens.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{USER_EMAIL}}\",\n  \"password\": \"{{USER_PASSWORD}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const body = pm.response.json();",
+                  "    pm.environment.set('ACCESS_TOKEN', body.accessToken);",
+                  "    pm.environment.set('REFRESH_TOKEN', body.refreshToken);",
+                  "    pm.environment.set('USER_ID', body.userId);",
+                  "    pm.test('Returns accessToken + refreshToken', function () {",
+                  "        pm.expect(body.accessToken).to.be.a('string');",
+                  "        pm.expect(body.refreshToken).to.be.a('string');",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ]
         }
-      ],
-      "description": "Admin-only user management endpoints. Requires ADMIN or IT_ADMIN role."
+      ]
     },
     {
-      "name": "Session Management",
+      "name": "08 · Sessions & trusted devices",
+      "description": "`SessionController`. Trusted devices are stored per user in `trusted_devices`.\nNote: no login flow currently writes `user_sessions` rows, so the session list is empty and revoking a session by id\nreturns 401 \"Session not found\" — see `docs/onboarding/10-behaviours-and-gotchas.md`.",
       "item": [
         {
-          "name": "Get Active Sessions",
+          "name": "List my sessions",
           "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{ACCESS_TOKEN}}",
-                  "type": "string"
-                }
-              ]
-            },
             "method": "GET",
             "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{ACCESS_TOKEN}}"
-              },
               {
                 "key": "X-Device-Id",
-                "value": "{{DEVICE_ID}}",
-                "description": "Optional: Current device ID to mark current session"
+                "value": "{{DEVICE_ID}}"
               }
             ],
-            "url": {
-              "raw": "{{BASE_URL}}/api/auth/sessions",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "auth", "sessions"]
-            },
-            "description": "Get all active sessions for the authenticated user.\n\n**Response:** List of sessions with device info, last activity, trust status."
+            "url": "{{BASE_URL}}/api/auth/sessions",
+            "description": "Optional `X-Device-Id` header marks `isCurrentSession`."
           },
-          "response": []
-        },
-        {
-          "name": "Revoke Session",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{ACCESS_TOKEN}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "DELETE",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{ACCESS_TOKEN}}"
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
               }
-            ],
-            "url": {
-              "raw": "{{BASE_URL}}/api/auth/sessions/{{SESSION_ID}}",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "auth", "sessions", "{{SESSION_ID}}"]
-            },
-            "description": "Revoke a specific session. The session becomes invalid and the device is logged out."
-          },
-          "response": []
+            }
+          ]
         },
         {
-          "name": "Revoke All Other Sessions",
+          "name": "Trust this device",
           "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{ACCESS_TOKEN}}",
-                  "type": "string"
-                }
-              ]
-            },
             "method": "POST",
             "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{ACCESS_TOKEN}}"
-              },
               {
                 "key": "Content-Type",
                 "value": "application/json"
               }
             ],
+            "url": "{{BASE_URL}}/api/auth/devices/trust",
+            "description": "Upsert by (user, deviceId).",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"exceptDeviceId\": \"{{DEVICE_ID}}\"\n}"
-            },
-            "url": {
-              "raw": "{{BASE_URL}}/api/auth/sessions/revoke-all",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "auth", "sessions", "revoke-all"]
-            },
-            "description": "Revoke all sessions except the current device. Useful for 'Sign out from all devices' feature."
+              "raw": "{\n  \"deviceId\": \"{{DEVICE_ID}}\",\n  \"deviceName\": \"Tejswita's Pixel\",\n  \"deviceModel\": \"Pixel 8\",\n  \"platform\": \"android\",\n  \"systemVersion\": \"15\",\n  \"appVersion\": \"1.0.9\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
-          "response": []
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
         },
         {
-          "name": "Validate Token",
+          "name": "List trusted devices",
           "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{ACCESS_TOKEN}}",
-                  "type": "string"
-                }
-              ]
-            },
             "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/api/auth/devices/trust",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Untrust device",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{BASE_URL}}/api/auth/devices/trust/{{DEVICE_ID}}",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Revoke all other sessions",
+          "request": {
+            "method": "POST",
             "header": [
               {
-                "key": "Authorization",
-                "value": "Bearer {{ACCESS_TOKEN}}"
+                "key": "Content-Type",
+                "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{BASE_URL}}/api/auth/validate",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "auth", "validate"]
-            },
-            "description": "Validate the current access token. Returns user info if valid."
+            "url": "{{BASE_URL}}/api/auth/sessions/revoke-all",
+            "description": "Body optional. With `exceptDeviceId`, keeps that device's session.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"exceptDeviceId\": \"{{DEVICE_ID}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
-          "response": []
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Revoke one session",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{BASE_URL}}/api/auth/sessions/{{SESSION_ID}}",
+            "description": "Returns 401 \"Session not found\" today because no sessions are recorded at login."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200 or 401', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 401]);",
+                  "});"
+                ]
+              }
+            }
+          ]
         }
-      ],
-      "description": "Session management endpoints for multi-device tracking."
+      ]
     },
     {
-      "name": "Device Trust",
+      "name": "09 · Admin (ADMIN / IT_ADMIN)",
+      "description": "`AdminUserController` — `/api/admin/**` requires role ADMIN or IT_ADMIN (URL rule in `SecurityConfig` **and**\n`@PreAuthorize` on every method). Requests in this folder use `{{ADMIN_ACCESS_TOKEN}}`.\n\nLocally, the `local` profile seeds `admin@fixhomi.local` / `LocalAdmin@123` (`LocalDevDataSeeder`).",
       "item": [
         {
-          "name": "Trust Device",
+          "name": "Login as seeded ADMIN",
           "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{ACCESS_TOKEN}}",
-                  "type": "string"
-                }
-              ]
-            },
             "method": "POST",
             "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{ACCESS_TOKEN}}"
-              },
               {
                 "key": "Content-Type",
                 "value": "application/json"
               }
             ],
+            "url": "{{BASE_URL}}/api/auth/login",
+            "description": "Saves `ADMIN_ACCESS_TOKEN`.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"deviceId\": \"{{DEVICE_ID}}\",\n  \"deviceName\": \"iPhone 15 Pro\",\n  \"deviceModel\": \"iPhone15,3\",\n  \"platform\": \"ios\",\n  \"systemVersion\": \"17.0\",\n  \"appVersion\": \"1.0.0\"\n}"
+              "raw": "{\n  \"email\": \"{{ADMIN_EMAIL}}\",\n  \"password\": \"{{ADMIN_PASSWORD}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
-            "url": {
-              "raw": "{{BASE_URL}}/api/auth/devices/trust",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "auth", "devices", "trust"]
-            },
-            "description": "Mark the current device as trusted. Trusted devices get additional security benefits."
+            "auth": {
+              "type": "noauth"
+            }
           },
-          "response": []
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const body = pm.response.json();",
+                  "    pm.environment.set('ADMIN_ACCESS_TOKEN', body.accessToken);",
+                  "    pm.environment.set('ADMIN_REFRESH_TOKEN', body.refreshToken);",
+                  "    pm.environment.set('ADMIN_USER_ID', body.userId);",
+                  "    pm.test('Returns accessToken + refreshToken', function () {",
+                  "        pm.expect(body.accessToken).to.be.a('string');",
+                  "        pm.expect(body.refreshToken).to.be.a('string');",
+                  "    });",
+                  "}",
+                  "pm.test('Role is ADMIN', () => pm.expect(pm.response.json().role).to.eql('ADMIN'));"
+                ]
+              }
+            }
+          ]
         },
         {
-          "name": "Get Trusted Devices",
+          "name": "Create SUPPORT user",
           "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{ACCESS_TOKEN}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "GET",
+            "method": "POST",
             "header": [
               {
-                "key": "Authorization",
-                "value": "Bearer {{ACCESS_TOKEN}}"
+                "key": "Content-Type",
+                "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{BASE_URL}}/api/auth/devices/trust",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "auth", "devices", "trust"]
-            },
-            "description": "Get all trusted devices for the authenticated user."
+            "url": "{{BASE_URL}}/api/admin/users",
+            "description": "`UserService.createUserByAdmin`. Allowed roles: ADMIN, IT_ADMIN, SUPPORT (USER/SERVICE_PROVIDER → 403).\nPassword: 8–100 chars (no complexity rule on this endpoint). Email is marked verified. Returns **201**.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{SUPPORT_EMAIL}}\",\n  \"password\": \"{{SUPPORT_PASSWORD}}\",\n  \"fullName\": \"Support Agent\",\n  \"role\": \"SUPPORT\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
-          "response": []
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('SUPPORT_EMAIL', 'support.' + Date.now() + '@fixhomi.local');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([201]);",
+                  "});",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    pm.environment.set('SUPPORT_USER_ID', pm.response.json().userId);",
+                  "}"
+                ]
+              }
+            }
+          ]
         },
         {
-          "name": "Untrust Device",
+          "name": "Create IT_ADMIN user",
           "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/admin/users",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{IT_ADMIN_EMAIL}}\",\n  \"password\": \"{{SUPPORT_PASSWORD}}\",\n  \"fullName\": \"IT Admin\",\n  \"role\": \"IT_ADMIN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('IT_ADMIN_EMAIL', 'itadmin.' + Date.now() + '@fixhomi.local');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([201]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create USER via admin → 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/admin/users",
+            "description": "Admin create rejects customer roles; customers sign up themselves.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"nope.{{$timestamp}}@example.com\",\n  \"password\": \"Passw0rd!23\",\n  \"fullName\": \"Nope\",\n  \"role\": \"USER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 403', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([403]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/api/admin/users/list",
+            "description": "Paged, newest first. Only USER and SERVICE_PROVIDER accounts are ever listed (staff accounts are not)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List users (filters)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/api/admin/users/list?role=USER&status=active&search=tej&page=0&size=10",
+            "description": "`role` = USER | SERVICE_PROVIDER, `status` = active | disabled, `search` matches name/email/phone,\n`page` (0-based), `size` (1–100, default 20)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get user by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/api/admin/users/{{USER_ID}}",
+            "description": "Any role, including staff."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get SUPPORT user by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/api/admin/users/{{SUPPORT_USER_ID}}",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Disable provider",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/admin/users/{{PROVIDER_USER_ID}}/status",
+            "description": "`isActive:false` deactivates the account and revokes all its refresh tokens.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Disabled provider's token is rejected",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/api/users/me",
+            "description": "The JWT is still validly signed, but `JwtAuthenticationFilter` checks `users.is_active` on every request →\n**401** `{\"code\":\"ACCOUNT_DELETED\",\"message\":\"Account has been deactivated.\"}`.",
             "auth": {
               "type": "bearer",
               "bearer": [
                 {
                   "key": "token",
-                  "value": "{{ACCESS_TOKEN}}",
+                  "value": "{{PROVIDER_ACCESS_TOKEN}}",
                   "type": "string"
                 }
               ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 401', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([401]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Enable provider",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/admin/users/{{PROVIDER_USER_ID}}/status",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{ADMIN_ACCESS_TOKEN}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "10 · RBAC in action (SUPPORT, USER, anonymous)",
+      "description": "Shows how the service answers when a caller lacks the required role or token.\n\n**Important:** for a denied or unauthenticated request the service responds **302 Found → `/oauth2/authorize/google`**\n(Spring's OAuth2 login entry point), not 401/403. These requests have *Automatically follow redirects* turned off so you\ncan see the 302. See `docs/onboarding/04-security-jwt-rbac.md`.",
+      "item": [
+        {
+          "name": "Login as SUPPORT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/auth/login",
+            "description": "Saves `SUPPORT_ACCESS_TOKEN`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{SUPPORT_EMAIL}}\",\n  \"password\": \"{{SUPPORT_PASSWORD}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    const body = pm.response.json();",
+                  "    pm.environment.set('SUPPORT_ACCESS_TOKEN', body.accessToken);",
+                  "    pm.environment.set('SUPPORT_REFRESH_TOKEN', body.refreshToken);",
+                  "    pm.environment.set('SUPPORT_USER_ID', body.userId);",
+                  "    pm.test('Returns accessToken + refreshToken', function () {",
+                  "        pm.expect(body.accessToken).to.be.a('string');",
+                  "        pm.expect(body.refreshToken).to.be.a('string');",
+                  "    });",
+                  "}",
+                  "pm.test('Role is SUPPORT', () => pm.expect(pm.response.json().role).to.eql('SUPPORT'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SUPPORT → own profile (allowed)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/api/users/me",
+            "description": "Any authenticated role can use the self-service endpoints.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{SUPPORT_ACCESS_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SUPPORT → admin list (denied)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/api/admin/users/list",
+            "description": "`/api/admin/**` requires ROLE_ADMIN or ROLE_IT_ADMIN.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{SUPPORT_ACCESS_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 302', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([302]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "USER → admin list (denied)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/api/admin/users/list",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 302', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([302]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "No token → protected endpoint",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/api/users/me",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 302', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([302]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 · Delete accounts",
+      "description": "Run last: these remove the test accounts created above.",
+      "item": [
+        {
+          "name": "Delete account · request OTP",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{BASE_URL}}/api/users/delete-account/request-otp",
+            "description": "JWT required. Needs a **verified** phone on the account (done in folders 03/06). OTP sent by SMS (console)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete account · confirm with OTP",
+          "request": {
             "method": "DELETE",
             "header": [
               {
-                "key": "Authorization",
-                "value": "Bearer {{ACCESS_TOKEN}}"
+                "key": "Content-Type",
+                "value": "application/json"
               }
             ],
-            "url": {
-              "raw": "{{BASE_URL}}/api/auth/devices/trust/{{DEVICE_ID}}",
-              "host": ["{{BASE_URL}}"],
-              "path": ["api", "auth", "devices", "trust", "{{DEVICE_ID}}"]
-            },
-            "description": "Remove trust from a specific device."
+            "url": "{{BASE_URL}}/api/users/account",
+            "description": "Soft delete (`UserService.performSoftDelete`): refresh tokens revoked, email/phone replaced by placeholders,\n`isActive=false`. The body on a DELETE is intentional.\n\n**Before sending:** copy the 6-digit code from the service console (`OTP CODE: ...`) into the `OTP` environment variable.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"otp\": \"{{OTP}}\",\n  \"reason\": \"Testing from Postman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
-          "response": []
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deleted user's token is rejected",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/api/users/me",
+            "description": "401 `ACCOUNT_DELETED` from `JwtAuthenticationFilter`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 401', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([401]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete by id (self, no OTP)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{BASE_URL}}/api/users/{{PROVIDER_USER_ID}}",
+            "description": "`UserController.deleteAccountById`. Allowed when the caller **is** that user, or the caller's DB role is `ADMIN`\n(IT_ADMIN is not included here). Soft delete.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{PROVIDER_ACCESS_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Admin hard delete",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{BASE_URL}}/api/admin/users/{{SIGNUP_USER_ID}}",
+            "description": "Irreversible: deletes the user row and its refresh tokens, sessions, trusted devices, delete OTPs and lockouts.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{ADMIN_ACCESS_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
         }
-      ],
-      "description": "Device trust management endpoints."
+      ]
+    },
+    {
+      "name": "12 · Social sign-in (needs real provider credentials)",
+      "description": "Google and Apple sign-in verify tokens issued by Google/Apple, so they only succeed with real client ids configured\n(`GOOGLE_CLIENT_ID`, `GOOGLE_IOS_CLIENT_ID`, `GOOGLE_ANDROID_CLIENT_ID`, `APPLE_BUNDLE_ID`). Locally they answer 401\n\"not configured\" / \"invalid token\" — that is expected. The Apple **email OTP** pair works locally.",
+      "item": [
+        {
+          "name": "Google mobile sign-in",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/auth/oauth2/google/mobile",
+            "description": "Public. `GoogleAuthService`. `idToken` from the Google SDK on the phone. `role` USER | SERVICE_PROVIDER,\n`mode` login | signup (empty = log in or auto-register). Structured 401 codes: `ROLE_CONFLICT`, `NOT_REGISTERED`,\n`ALREADY_REGISTERED`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idToken\": \"{{GOOGLE_ID_TOKEN}}\",\n  \"role\": \"USER\",\n  \"mode\": \"login\",\n  \"deviceType\": \"android\",\n  \"appVersion\": \"1.0.9\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200 or 401', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 401]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Apple · send email OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/auth/oauth2/apple/send-email-otp",
+            "description": "Public. Used when Apple did not share an email: the app collects one and proves ownership with a 6-digit code\n(10-minute expiry). Console prints it under `EMAIL TYPE: Login OTP`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{APPLE_EMAIL}}\",\n  \"appleUserId\": \"{{APPLE_USER_ID}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('APPLE_EMAIL', 'apple.' + Date.now() + '@example.com');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Apple · verify email OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/auth/oauth2/apple/verify-email-otp",
+            "description": "Public. Returns `{verified:true, verificationToken}` (HS512, 10 minutes).\n\n**Before sending:** copy the 6-digit code from the service console (`OTP CODE: ...`) into the `OTP` environment variable.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{APPLE_EMAIL}}\",\n  \"appleUserId\": \"{{APPLE_USER_ID}}\",\n  \"otp\": \"{{OTP}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "    pm.environment.set('APPLE_VERIFICATION_TOKEN', pm.response.json().verificationToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Apple mobile sign-in",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/auth/oauth2/apple/mobile",
+            "description": "Public. `AppleAuthService`. Either `identityToken` (from Apple) or `verificationToken` (from the step above).\nReturns 401 \"Apple Sign-In is not configured\" unless `APPLE_BUNDLE_ID` is set.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"verificationToken\": \"{{APPLE_VERIFICATION_TOKEN}}\",\n  \"role\": \"USER\",\n  \"mode\": \"signup\",\n  \"fullName\": \"Apple Test\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200 or 401', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 401]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Browser Google OAuth2 (start)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/oauth2/authorize/google",
+            "description": "Spring Security `oauth2Login`. Redirects (302) to Google's consent page; the callback is `/oauth2/callback/google`\nand responds with `LoginResponse` JSON. Not used by the mobile app. Open in a browser with real credentials.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 302', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([302]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        }
+      ]
+    },
+    {
+      "name": "13 · Logout",
+      "description": "Logout revokes **one refresh token**. Access tokens are not revoked; they expire after 24 h.",
+      "item": [
+        {
+          "name": "Logout (admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/auth/logout",
+            "description": "Public. Always 200, even for an unknown token.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{ADMIN_REFRESH_TOKEN}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh with the logged-out token → 401",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/auth/refresh",
+            "description": "Logout-revoked tokens get no grace window.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{ADMIN_REFRESH_TOKEN}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 401', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([401]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

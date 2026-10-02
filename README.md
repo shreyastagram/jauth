@@ -1,366 +1,87 @@
-# FixHomi Authentication Service
+# FixHomi Auth Service (jauth)
 
-Production-grade JWT-based authentication microservice for FixHomi application.
+The identity service for FixHomi. It registers and signs in every customer, service provider and staff member, issues the JWTs the rest of the platform trusts, and enforces role-based access to its admin API.
 
-## 🏗️ Architecture
+| | |
+|---|---|
+| Stack | Spring Boot 3.4.12 · Java 17 · Spring Security 6 · jjwt 0.11.5 (HS512) · Hibernate 6.6 |
+| Database | PostgreSQL (Neon) in production · H2 locally |
+| Notifications | MSG91 (SMS) · Brevo (email) · console stubs locally |
+| Deployed | Render (Docker) at `https://auth.fixhomi.com` |
+| Consumers | React Native app · Node.js backend · admin panel (via Node) · website |
 
-- **Spring Boot**: 3.4.12
-- **Java**: 17 (LTS)
-- **Security**: Spring Security 6.x + JWT (jjwt 0.11.5)
-- **Database (Dev)**: H2 in-memory
-- **Database (Prod)**: PostgreSQL (ready to configure)
-- **Build Tool**: Maven
-- **Authentication**: Stateless JWT tokens
+## Quick start (local)
 
-## 📦 Project Structure
+Requirements: JDK 17. Maven comes with the wrapper.
 
-```
-com.fixhomi.auth
-├── config/              # Spring configuration classes
-│   ├── JpaConfig.java         # JPA auditing configuration
-│   └── SecurityConfig.java    # Security & CORS configuration
-├── controller/          # REST API controllers
-│   └── AuthController.java    # Authentication endpoints
-├── dto/                 # Data Transfer Objects
-│   ├── LoginRequest.java      # Login request payload
-│   ├── LoginResponse.java     # Login response with JWT
-│   └── RegisterRequest.java   # Registration request payload
-├── entity/              # JPA entities
-│   ├── Role.java             # User role enum
-│   └── User.java             # User entity
-├── exception/           # Custom exceptions & handlers
-│   ├── AuthenticationException.java
-│   ├── DuplicateResourceException.java
-│   ├── ErrorResponse.java
-│   ├── GlobalExceptionHandler.java
-│   └── ResourceNotFoundException.java
-├── repository/          # Data access layer
-│   └── UserRepository.java   # User repository interface
-├── security/            # Security components
-│   ├── JwtAuthenticationFilter.java  # JWT validation filter
-│   └── JwtService.java               # JWT generation/validation
-└── service/             # Business logic
-    └── AuthService.java              # Authentication service
-```
-
-## 👥 User Roles
-
-The system supports five distinct user types:
-
-- `USER` - Regular customers
-- `SERVICE_PROVIDER` - Service providers (plumbers, electricians, etc.)
-- `ADMIN` - Administrative users with full access
-- `SUPPORT` - Customer support staff
-- `IT_ADMIN` - IT administrators for system management
-
-## 🔐 Security Features
-
-### JWT Token Structure
-
-```json
-{
-  "userId": 123,
-  "role": "USER",
-  "tokenType": "ACCESS",
-  "sub": "user@example.com",
-  "iat": 1234567890,
-  "exp": 1234654290,
-  "iss": "fixhomi-auth-service"
-}
-```
-
-### Key Security Components
-
-1. **Password Encryption**: BCrypt with strength 12
-2. **JWT Signing**: HS512 algorithm
-3. **Token Expiration**: 24 hours (configurable)
-4. **Stateless Authentication**: No server-side sessions
-5. **CORS Configuration**: Pre-configured for Node.js services
-6. **Role-Based Access Control**: Spring Security method-level security
-
-## 🚀 API Endpoints
-
-### Public Endpoints (No Authentication Required)
-
-#### 1. Register User
-```http
-POST /api/auth/register
-Content-Type: application/json
-
-{
-  "email": "user@example.com",
-  "phoneNumber": "+1234567890",
-  "password": "SecurePass123!",
-  "fullName": "John Doe",
-  "role": "USER"
-}
-```
-
-**Response (201 Created):**
-```json
-{
-  "accessToken": "eyJhbGciOiJIUzUxMiJ9...",
-  "tokenType": "Bearer",
-  "userId": 1,
-  "email": "user@example.com",
-  "fullName": "John Doe",
-  "role": "USER",
-  "expiresIn": 86400
-}
-```
-
-#### 2. Login
-```http
-POST /api/auth/login
-Content-Type: application/json
-
-{
-  "email": "user@example.com",
-  "password": "SecurePass123!"
-}
-```
-
-**Response (200 OK):**
-```json
-{
-  "accessToken": "eyJhbGciOiJIUzUxMiJ9...",
-  "tokenType": "Bearer",
-  "userId": 1,
-  "email": "user@example.com",
-  "fullName": "John Doe",
-  "role": "USER",
-  "expiresIn": 86400
-}
-```
-
-#### 3. Health Check
-```http
-GET /api/auth/health
-```
-
-**Response (200 OK):**
-```json
-{
-  "status": "UP",
-  "message": "Auth service is running"
-}
-```
-
-### Protected Endpoints (Require JWT)
-
-To access protected endpoints, include the JWT token in the Authorization header:
-
-```http
-Authorization: Bearer eyJhbGciOiJIUzUxMiJ9...
-```
-
-## 🔧 Configuration
-
-### application.yaml
-
-Key configurations in `src/main/resources/application.yaml`:
-
-```yaml
-# JWT Configuration
-jwt:
-  secret: your-256-bit-secret-key-change-this-in-production
-  expiration:
-    ms: 86400000  # 24 hours
-  issuer: fixhomi-auth-service
-
-# Database (H2 for development)
-spring:
-  datasource:
-    url: jdbc:h2:mem:fixhomi_auth
-    username: sa
-    password: 
-```
-
-### Production Configuration
-
-For production, update:
-
-1. **JWT Secret**: Use a strong, randomly generated 256-bit key
-2. **Database**: Switch to PostgreSQL
-3. **CORS Origins**: Configure allowed origins in `SecurityConfig.java`
-4. **Logging**: Reduce log level to INFO or WARN
-
-## 🗄️ Database Schema
-
-### Users Table
-
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | BIGINT | PRIMARY KEY, AUTO_INCREMENT |
-| email | VARCHAR(100) | NOT NULL, UNIQUE |
-| phone_number | VARCHAR(20) | |
-| password_hash | VARCHAR(60) | NOT NULL (BCrypt) |
-| full_name | VARCHAR(100) | NOT NULL |
-| role | VARCHAR(20) | NOT NULL (ENUM) |
-| is_active | BOOLEAN | NOT NULL, DEFAULT TRUE |
-| is_email_verified | BOOLEAN | NOT NULL, DEFAULT FALSE |
-| is_phone_verified | BOOLEAN | NOT NULL, DEFAULT FALSE |
-| created_at | TIMESTAMP | NOT NULL |
-| updated_at | TIMESTAMP | NOT NULL |
-| last_login_at | TIMESTAMP | |
-
-### Indexes
-
-- `idx_email` - Unique index on email
-- `idx_phone` - Index on phone_number
-
-## 🧪 Testing with cURL
-
-### Register a User
 ```bash
-curl -X POST http://localhost:8080/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "john.doe@example.com",
-    "password": "SecurePass123!",
-    "fullName": "John Doe",
-    "role": "USER"
-  }'
+cp .env.local.example .env
+# set JWT_SECRET in .env to the output of:
+openssl rand -base64 64 | tr -d '\n'
+
+./run.sh local
+curl http://localhost:8080/api/auth/health
+# {"status":"UP","message":"Auth service is running"}
 ```
 
-### Login
-```bash
-curl -X POST http://localhost:8080/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "john.doe@example.com",
-    "password": "SecurePass123!"
-  }'
+The `local` profile gives you:
+- a file-based H2 database in `./.localdb`;
+- OTPs and emails **printed to the console** instead of sent;
+- a seeded admin account: `admin@fixhomi.local` / `LocalAdmin@123`.
+
+Then import `postman/FixHomi_Auth_Service.postman_collection.json` and `postman/FixHomi_Auth_Local.postman_environment.json` into Postman. The collection covers every endpoint and runs top to bottom.
+
+Run the tests with `./mvnw test`.
+
+## Documentation
+
+Start with **[docs/onboarding/](docs/onboarding/README.md)**. New to the project? Read the 7-slide overview first: [docs/onboarding/kt-deck/jauth-kt-deck.pdf](docs/onboarding/kt-deck/jauth-kt-deck.pdf).
+
+| | |
+|---|---|
+| [01 Local setup](docs/onboarding/01-local-setup.md) | [07 How other services use jauth](docs/onboarding/07-how-other-services-use-auth.md) |
+| [02 Architecture & folder structure](docs/onboarding/02-architecture.md) | [08 Walkthrough: send OTP → validate token](docs/onboarding/08-walkthrough-send-otp-and-validate-token.md) |
+| [03 API reference (50 endpoints)](docs/onboarding/03-api-reference.md) | [09 Configuration](docs/onboarding/09-configuration.md) |
+| [04 Security, JWT & RBAC](docs/onboarding/04-security-jwt-rbac.md) | [10 Behaviours & gotchas](docs/onboarding/10-behaviours-and-gotchas.md) |
+| [05 Authentication flows](docs/onboarding/05-auth-flows.md) | [11 Working on this repo](docs/onboarding/11-working-on-this-repo.md) |
+| [06 Data model](docs/onboarding/06-data-model.md) | |
+
+Before changing anything, read [AGENTS.md](AGENTS.md). This is a live production service.
+
+## API at a glance
+
+| Prefix | Controller | Purpose |
+|---|---|---|
+| `/api/auth` | `AuthController` | register, login (email/phone + password), refresh, logout, health |
+| `/api/auth/login` | `OtpLoginController` | passwordless phone/email OTP login |
+| `/api/auth/signup` | `PhoneSignupController` | phone-number signup (USER) |
+| `/api/auth/oauth2` | `OAuth2Controller` | Google / Apple mobile sign-in |
+| `/api/auth` | `VerificationController` | phone/email verification, forgot/reset password |
+| `/api/auth` | `SessionController` | sessions, trusted devices, `/validate` |
+| `/api/token` | `TokenController` | token introspection |
+| `/api/users` | `UserController` | the caller's own account |
+| `/api/admin/users` | `AdminUserController` | staff creation and user administration (ADMIN / IT_ADMIN) |
+
+Roles: `USER`, `SERVICE_PROVIDER`, `ADMIN`, `SUPPORT`, `IT_ADMIN`.
+
+## Project layout
+
+```
+src/main/java/com/fixhomi/auth/
+  config/       security config, rate limiting, provider wiring, local seeder
+  controller/   9 REST controllers
+  dto/          request/response classes with validation
+  entity/       JPA entities + Role enum
+  repository/   Spring Data repositories
+  security/     JWT service + filter, OAuth2 handlers, token hashing
+  service/      business logic; notification/ = SMS & email providers
+  exception/    custom exceptions + GlobalExceptionHandler
+src/main/resources/
+  application.yaml, application-local.yaml, application-prod.yaml
+postman/        collection + local environment
+docs/onboarding/  current documentation
 ```
 
-### Access Protected Resource
-```bash
-curl -X GET http://localhost:8080/api/protected-endpoint \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN"
-```
+## Deployment
 
-## 🔗 Integration with Node.js Services
-
-Node.js services can validate JWT tokens using the same secret key:
-
-```javascript
-const jwt = require('jsonwebtoken');
-
-function verifyToken(token) {
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    return {
-      userId: decoded.userId,
-      email: decoded.sub,
-      role: decoded.role,
-      tokenType: decoded.tokenType
-    };
-  } catch (error) {
-    throw new Error('Invalid token');
-  }
-}
-
-// Middleware example
-function authenticate(req, res, next) {
-  const authHeader = req.headers.authorization;
-  
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'No token provided' });
-  }
-  
-  const token = authHeader.substring(7);
-  
-  try {
-    req.user = verifyToken(token);
-    next();
-  } catch (error) {
-    res.status(401).json({ error: 'Invalid token' });
-  }
-}
-```
-
-## 🚦 Running the Application
-
-### Prerequisites
-- Java 17 or higher
-- Maven 3.6+
-
-### Start the Application
-```bash
-mvn spring-boot:run
-```
-
-The service will start on `http://localhost:8080`
-
-### Access H2 Console (Development)
-```
-URL: http://localhost:8080/h2-console
-JDBC URL: jdbc:h2:mem:fixhomi_auth
-Username: sa
-Password: (leave empty)
-```
-
-## 📋 Error Handling
-
-All errors return a consistent JSON structure:
-
-```json
-{
-  "timestamp": "2024-12-14T10:30:00",
-  "status": 401,
-  "error": "Authentication Failed",
-  "message": "Invalid email or password",
-  "path": "/api/auth/login",
-  "validationErrors": {
-    "field": "error message"
-  }
-}
-```
-
-### HTTP Status Codes
-
-- `200 OK` - Successful request
-- `201 Created` - Resource created (registration)
-- `400 Bad Request` - Validation errors
-- `401 Unauthorized` - Authentication failed
-- `403 Forbidden` - Access denied
-- `404 Not Found` - Resource not found
-- `409 Conflict` - Duplicate resource (email exists)
-- `500 Internal Server Error` - Server error
-
-## 🔒 Security Best Practices
-
-1. **Never commit the JWT secret** to version control
-2. **Use environment variables** for sensitive configuration
-3. **Rotate JWT secrets** periodically in production
-4. **Implement rate limiting** for login endpoints
-5. **Use HTTPS** in production
-6. **Monitor failed login attempts** for security threats
-7. **Implement refresh tokens** for long-lived sessions (future enhancement)
-
-## 📝 Next Steps (Future Enhancements)
-
-Once the core authentication is confirmed working:
-
-1. ✅ **Refresh Tokens** - Add refresh token support
-2. ✅ **Email Verification** - Implement email verification flow
-3. ✅ **Password Reset** - Add forgot password functionality
-4. ✅ **2FA/MFA** - Two-factor authentication
-5. ✅ **OAuth2 Integration** - Google, Facebook login
-6. ✅ **Rate Limiting** - Prevent brute force attacks
-7. ✅ **Audit Logging** - Track authentication events
-8. ✅ **User Management APIs** - Admin endpoints for user CRUD
-
-## 🤝 Contributing
-
-This is a production microservice. All changes must:
-- Follow clean code principles
-- Include proper validation
-- Have comprehensive error handling
-- Be properly tested
-
----
-
-**Service Owner**: FixHomi Engineering Team  
-**Last Updated**: December 2024  
-**Version**: 1.0.0
+Render builds the `Dockerfile` (tests skipped in the image build) and runs it with `SPRING_PROFILES_ACTIVE=prod`. Secrets are set in the Render dashboard. `JWT_SECRET` must be identical to the Node backend's. See [09 Configuration](docs/onboarding/09-configuration.md).
