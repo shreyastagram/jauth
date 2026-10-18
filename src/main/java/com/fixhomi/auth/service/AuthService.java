@@ -360,9 +360,10 @@ public class AuthService {
     }
 
     /**
-     * Cleanup expired lockout entries every 30 minutes.
+     * Cleanup expired lockout entries hourly (kept infrequent so it doesn't
+     * keep Neon compute awake).
      */
-    @Scheduled(fixedRate = 1800000) // 30 minutes
+    @Scheduled(fixedRate = 3600000) // 1 hour
     @Transactional
     public void cleanupExpiredLockouts() {
         LocalDateTime cutoff = LocalDateTime.now().minusMinutes(lockoutDurationMinutes * 2);

@@ -204,10 +204,10 @@ public class RefreshTokenService {
     }
 
     /**
-     * Cleanup expired and revoked refresh tokens every 30 minutes.
-     * Prevents database bloat from accumulated tokens.
+     * Cleanup expired and revoked refresh tokens hourly (kept infrequent so it
+     * doesn't keep Neon compute awake). Prevents database bloat from tokens.
      */
-    @Scheduled(fixedRate = 1800000) // 30 minutes
+    @Scheduled(fixedRate = 3600000) // 1 hour
     @Transactional
     public void cleanupExpiredTokens() {
         LocalDateTime now = LocalDateTime.now();

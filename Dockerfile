@@ -40,9 +40,10 @@ COPY --from=build /app/target/*.jar app.jar
 # Expose the default port (Render will override this with PORT env variable)
 EXPOSE 8080
 
-# Health check endpoint for Spring Boot Actuator
+# Health check (liveness — does not hit the DB, so the probe doesn't keep
+# Neon compute awake)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
-  CMD curl -f http://localhost:${PORT:-8080}/actuator/health || exit 1
+  CMD curl -f http://localhost:${PORT:-8080}/actuator/health/liveness || exit 1
 
 # Run the application with optimized JVM settings for containers
 # -XX:+UseContainerSupport: Enable container-aware memory settings

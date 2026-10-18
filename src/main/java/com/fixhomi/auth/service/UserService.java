@@ -649,9 +649,10 @@ public class UserService {
     }
 
     /**
-     * Cleanup expired delete account OTP entries every 10 minutes.
+     * Cleanup expired delete account OTP entries hourly (kept infrequent so it
+     * doesn't keep Neon compute awake).
      */
-    @Scheduled(fixedRate = 600000)
+    @Scheduled(fixedRate = 3600000)
     @Transactional
     public void cleanupExpiredDeleteOtps() {
         int removed = deleteAccountOtpRepository.deleteExpiredOtps(LocalDateTime.now());

@@ -431,9 +431,10 @@ public class PasswordResetService {
     }
 
     /**
-     * Cleanup expired phone reset OTP entries every 10 minutes.
+     * Cleanup expired phone reset OTP entries hourly (kept infrequent so it
+     * doesn't keep Neon compute awake).
      */
-    @Scheduled(fixedRate = 600000)
+    @Scheduled(fixedRate = 3600000)
     @Transactional
     public void cleanupExpiredEntries() {
         int removed = passwordResetOtpRepository.deleteExpiredOtps(LocalDateTime.now());
