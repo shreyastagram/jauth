@@ -111,7 +111,8 @@ public class SecurityConfig {
                     
                     // Admin endpoints - protected by @PreAuthorize at method level
                     .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "IT_ADMIN")
-                    
+                    // Support endpoints - SUPPORT agents (admins may use them too)
+                    .requestMatchers("/api/support/**").hasAnyRole("SUPPORT", "ADMIN", "IT_ADMIN")
                     // All other requests require authentication
                     .anyRequest().authenticated()
                 )
