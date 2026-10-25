@@ -1,8 +1,8 @@
 package com.fixhomi.auth.config;
 
-import com.fixhomi.auth.security.JwtAuthenticationFilter;
-import com.fixhomi.auth.security.OAuth2AuthenticationFailureHandler;
-import com.fixhomi.auth.security.OAuth2AuthenticationSuccessHandler;
+import java.util.Arrays;
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -21,8 +21,9 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.util.Arrays;
-import java.util.List;
+import com.fixhomi.auth.security.JwtAuthenticationFilter;
+import com.fixhomi.auth.security.OAuth2AuthenticationFailureHandler;
+import com.fixhomi.auth.security.OAuth2AuthenticationSuccessHandler;
 
 /**
  * Spring Security configuration for JWT-based authentication with OAuth2 support.
@@ -111,6 +112,9 @@ public class SecurityConfig {
                     
                     // Admin endpoints - protected by @PreAuthorize at method level
                     .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "IT_ADMIN")
+
+                    // Support endpoints - SUPPORT agents (admins may use them too)
+                    .requestMatchers("/api/support/**").hasAnyRole("SUPPORT", "ADMIN", "IT_ADMIN")
                     
                     // All other requests require authentication
                     .anyRequest().authenticated()

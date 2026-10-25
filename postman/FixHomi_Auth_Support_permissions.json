@@ -1,0 +1,884 @@
+{
+  "info": {
+    "name": "postman/FixHomi_Auth_Support_permissions",
+    "description": "Tests the jauth Support permission guide end to end on the LOCAL profile.\n\nHow to use:\n1. Start jauth with ./run.sh local (default URL http://localhost:8080).\n2. Run folder 00 Setup (it creates a fresh support user and customer each time).\n3. Run folder 01 Tests in order (use the Runner: Run collection, keep the order).\n\nWrong-role calls return 302 in this app, so redirects are switched off for every request (protocolProfileBehavior.followRedirects=false). Nothing needs to be set in Postman settings.\n\nAll variables are collection variables prefixed SP_, so your own environment is left alone. BASE_URL, ADMIN_EMAIL and ADMIN_PASSWORD can be overridden by a Postman environment.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "protocolProfileBehavior": {
+    "followRedirects": false
+  },
+  "variable": [
+    {
+      "key": "BASE_URL",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "ADMIN_EMAIL",
+      "value": "admin@fixhomi.local"
+    },
+    {
+      "key": "ADMIN_PASSWORD",
+      "value": "LocalAdmin@123"
+    },
+    {
+      "key": "SP_SUPPORT_PASSWORD",
+      "value": "Support@123"
+    },
+    {
+      "key": "SP_CUSTOMER_PASSWORD",
+      "value": "Passw0rd!23"
+    }
+  ],
+  "item": [
+    {
+      "name": "00 \u00b7 Setup (run first)",
+      "item": [
+        {
+          "name": "0.1 Login as ADMIN",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/auth/login",
+            "description": "Local profile seeds this admin. Saves SP_ADMIN_TOKEN and SP_ADMIN_ID.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{ADMIN_EMAIL}}\",\n  \"password\": \"{{ADMIN_PASSWORD}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "const b = pm.response.json();",
+                  "pm.collectionVariables.set('SP_ADMIN_TOKEN', b.accessToken);",
+                  "pm.collectionVariables.set('SP_ADMIN_ID', b.userId);",
+                  "pm.test('role is ADMIN', function () { pm.expect(b.role).to.eql('ADMIN'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "0.2 Create a SUPPORT user (as admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/admin/users",
+            "description": "A fresh support user is made on every run. Saves SP_SUPPORT_ID.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{SP_SUPPORT_EMAIL}}\",\n  \"password\": \"{{SP_SUPPORT_PASSWORD}}\",\n  \"fullName\": \"Support One\",\n  \"role\": \"SUPPORT\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{SP_ADMIN_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('SP_SUPPORT_EMAIL', 'support.' + Date.now() + '@fixhomi.local');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () { pm.expect(pm.response.code).to.eql(201); });",
+                  "const b = pm.response.json();",
+                  "pm.collectionVariables.set('SP_SUPPORT_ID', b.userId);",
+                  "pm.test('created role is SUPPORT', function () { pm.expect(b.role).to.eql('SUPPORT'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "0.3 Login as SUPPORT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/auth/login",
+            "description": "Saves SP_SUPPORT_TOKEN.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{SP_SUPPORT_EMAIL}}\",\n  \"password\": \"{{SP_SUPPORT_PASSWORD}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "const b = pm.response.json();",
+                  "pm.collectionVariables.set('SP_SUPPORT_TOKEN', b.accessToken);",
+                  "pm.test('role is SUPPORT', function () { pm.expect(b.role).to.eql('SUPPORT'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "0.4 Register a CUSTOMER",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/auth/register",
+            "description": "A fresh customer is made on every run. Saves SP_CUSTOMER_TOKEN and SP_CUSTOMER_ID.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{SP_CUSTOMER_EMAIL}}\",\n  \"phoneNumber\": \"{{SP_CUSTOMER_PHONE}}\",\n  \"password\": \"{{SP_CUSTOMER_PASSWORD}}\",\n  \"fullName\": \"Customer One\",\n  \"role\": \"USER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('SP_CUSTOMER_EMAIL', 'customer.' + Date.now() + '@example.com');",
+                  "pm.collectionVariables.set('SP_CUSTOMER_PHONE', '9' + Math.floor(100000000 + Math.random() * 899999999));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () { pm.expect(pm.response.code).to.eql(201); });",
+                  "const b = pm.response.json();",
+                  "pm.collectionVariables.set('SP_CUSTOMER_TOKEN', b.accessToken);",
+                  "pm.collectionVariables.set('SP_CUSTOMER_ID', b.userId);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 \u00b7 Tests",
+      "item": [
+        {
+          "name": "1 \u00b7 Support reads own permissions \u2192 200 (empty)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/api/support/me",
+            "description": "Support is allowed in, and has no extra permission yet.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{SP_SUPPORT_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "const b = pm.response.json();",
+                  "pm.test('role SUPPORT, no permissions', function () { pm.expect(b.role).to.eql('SUPPORT'); pm.expect(b.permissions).to.eql([]); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2 \u00b7 Support blocks a customer WITHOUT permission \u2192 403",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/support/users/{{SP_CUSTOMER_ID}}/status",
+            "description": "Security check: 'only if specifically permitted'.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{SP_SUPPORT_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 403', function () { pm.expect(pm.response.code).to.eql(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3 \u00b7 Support tries to grant a permission \u2192 302",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{BASE_URL}}/api/admin/support-staff/{{SP_SUPPORT_ID}}/permissions/ACCOUNT_STATUS_UPDATE",
+            "description": "Security check: support cannot give permissions to anyone. /api/admin/** is admin only (302 is how this app refuses).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{SP_SUPPORT_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 302', function () { pm.expect(pm.response.code).to.eql(302); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4 \u00b7 Admin grants ACCOUNT_STATUS_UPDATE \u2192 200",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{BASE_URL}}/api/admin/support-staff/{{SP_SUPPORT_ID}}/permissions/ACCOUNT_STATUS_UPDATE",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{SP_ADMIN_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "const b = pm.response.json();",
+                  "pm.test('list contains the permission', function () { pm.expect(b.permissions).to.include('ACCOUNT_STATUS_UPDATE'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5 \u00b7 Support reads own permissions \u2192 200 (has it)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/api/support/me",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{SP_SUPPORT_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "const b = pm.response.json();",
+                  "pm.test('has ACCOUNT_STATUS_UPDATE', function () { pm.expect(b.permissions).to.eql(['ACCOUNT_STATUS_UPDATE']); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6 \u00b7 Support blocks the customer \u2192 200 (no re-login needed)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/support/users/{{SP_CUSTOMER_ID}}/status",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{SP_SUPPORT_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "const b = pm.response.json();",
+                  "pm.test('account is now disabled', function () { pm.expect(b.isActive).to.eql(false); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "7 \u00b7 Support unblocks the customer \u2192 200",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/support/users/{{SP_CUSTOMER_ID}}/status",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{SP_SUPPORT_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "const b = pm.response.json();",
+                  "pm.test('account is active again', function () { pm.expect(b.isActive).to.eql(true); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8 \u00b7 Support touches an ADMIN account \u2192 404",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/support/users/{{SP_ADMIN_ID}}/status",
+            "description": "Security check: support cannot disable admins, and cannot even tell that an admin exists.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{SP_SUPPORT_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', function () { pm.expect(pm.response.code).to.eql(404); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9 \u00b7 Admin grants a permission to a CUSTOMER \u2192 403",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{BASE_URL}}/api/admin/support-staff/{{SP_CUSTOMER_ID}}/permissions/ACCOUNT_STATUS_UPDATE",
+            "description": "Only SUPPORT users can hold permissions.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{SP_ADMIN_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 403', function () { pm.expect(pm.response.code).to.eql(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "10 \u00b7 Admin grants an unknown permission \u2192 400",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{BASE_URL}}/api/admin/support-staff/{{SP_SUPPORT_ID}}/permissions/MAKE_ADMIN",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{SP_ADMIN_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', function () { pm.expect(pm.response.code).to.eql(400); });",
+                  "pm.test('message lists allowed names', function () { pm.expect(pm.response.text()).to.include('Unknown permission'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "11 \u00b7 Admin lists the support user's permissions \u2192 200",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/api/admin/support-staff/{{SP_SUPPORT_ID}}/permissions",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{SP_ADMIN_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "const b = pm.response.json();",
+                  "pm.test('contains ACCOUNT_STATUS_UPDATE', function () { pm.expect(b.permissions).to.include('ACCOUNT_STATUS_UPDATE'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12 \u00b7 Admin revokes the permission \u2192 200",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{BASE_URL}}/api/admin/support-staff/{{SP_SUPPORT_ID}}/permissions/ACCOUNT_STATUS_UPDATE",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{SP_ADMIN_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "const b = pm.response.json();",
+                  "pm.test('list is empty again', function () { pm.expect(b.permissions).to.eql([]); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "13 \u00b7 Support blocks again \u2192 403 immediately",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{BASE_URL}}/api/support/users/{{SP_CUSTOMER_ID}}/status",
+            "description": "Security check: revoking works on the very next request, with the same old token.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{SP_SUPPORT_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 403', function () { pm.expect(pm.response.code).to.eql(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "14 \u00b7 CUSTOMER enters the support area \u2192 302",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/api/support/me",
+            "description": "Security check: customers cannot enter /api/support/**.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{SP_CUSTOMER_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 302', function () { pm.expect(pm.response.code).to.eql(302); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "15 \u00b7 Admin reads /api/support/me \u2192 200 (all permissions)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/api/support/me",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{SP_ADMIN_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "const b = pm.response.json();",
+                  "pm.test('admin has every permission', function () { pm.expect(b.permissions).to.have.members(['ACCOUNT_STATUS_UPDATE','SERVICE_REQUEST_STATUS_UPDATE']); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "16 \u00b7 Support opens the admin user list \u2192 302",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/api/admin/users/list",
+            "description": "Security check: the admin area stays closed to support.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{SP_SUPPORT_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 302', function () { pm.expect(pm.response.code).to.eql(302); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "17 \u00b7 No token on the support area \u2192 302",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{BASE_URL}}/api/support/me",
+            "description": "Anonymous callers are refused.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 302', function () { pm.expect(pm.response.code).to.eql(302); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
